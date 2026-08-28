@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { MODELS, modelById } from "../data/models";
-import { providerById } from "../data/providers";
+import { MODELS, modelById, isAutoModel, resolveAutoModel, AUTO_LABEL } from "../data/models";
+import { providerById, PROVIDERS } from "../data/providers";
 import { streamChat } from "../lib/llm";
 import { demoReply } from "../lib/engine";
 import { Markdown } from "../lib/markdown";
@@ -50,8 +50,9 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
     stopRef.current = stopReq;
   }, [stopReq]);
 
-  const model = modelById.get(modelId) ?? MODELS[0];
-  const provider = providerById.get(model.providerId)!;
+  const auto = isAutoModel(modelId);
+  const model = auto ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
+  const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
   const live = !!cfgs[model.providerId]?.key?.trim();
 
   function autosize() {
@@ -170,7 +171,8 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
             <div className="mx-auto w-full max-w-[760px] px-6 py-12">
               <p className="overline flex items-center gap-2">
                 <span className={`h-1.5 w-1.5 rounded-full ${live ? "pulse-live bg-mint" : "bg-gold"}`} />
-                session · {provider.name} · {model.name} · {live ? "live" : "demo"}
+                session · {auto ? `${AUTO_LABEL[modelId]} → ` : ""}
+                {provider.name} · {model.name} · {live ? "live" : "demo"}
               </p>
               <div className="mt-5">
                 <Wordmark className="text-[clamp(34px,4.6vw,58px)] leading-none" />

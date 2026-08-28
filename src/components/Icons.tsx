@@ -36,6 +36,19 @@ export const Wordmark = ({ className = "" }: IP) => (
 
 /* ---------- ui ---------- */
 
+export const BoltIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M13 2.5L4.5 13.5H11l-1 8 8.5-11H12z" />
+  </S>
+);
+
+export const GiftIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="3.5" y="8" width="17" height="4" rx="1" />
+    <path d="M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7M12 8v12.5M12 8s-1.2-4.5-4-4.5A2.2 2.2 0 0 0 8 8zM12 8s1.2-4.5 4-4.5A2.2 2.2 0 0 1 16 8z" />
+  </S>
+);
+
 export const SendIcon = (p: IP) => (
   <S {...p}>
     <path d="M4.5 12L3 4.5c0-.6.6-1 1.1-.8l16.3 7.4c.5.2.5.9 0 1.1L4.1 19.6c-.5.2-1.1-.2-1.1-.8z" />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { modelById, MODELS } from "../data/models";
-import { providerById } from "../data/providers";
+import { modelById, MODELS, isAutoModel, resolveAutoModel } from "../data/models";
+import { providerById, PROVIDERS } from "../data/providers";
 import {
   scaffoldProject, generateProjectWithLLM, buildPreviewDoc, CODER_SUGGESTIONS,
 } from "../lib/engine";
@@ -46,8 +46,8 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
   const termRef = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
-  const model = modelById.get(modelId) ?? MODELS[0];
-  const provider = providerById.get(model.providerId)!;
+  const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
+  const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
   const live = !!cfgs[model.providerId]?.key?.trim();
   const tplLabel = project ? pickTemplate(project.prompt).label : "";
 
@@ -96,7 +96,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
       let tplId = project.templateId;
 
       const llmFiles = await generateProjectWithLLM(
-        project.prompt, model.providerId, cfgs[model.providerId], modelId,
+        project.prompt, model.providerId, cfgs[model.providerId], model.id,
         (l) => log(l), ac.signal
       ).catch(() => null);
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PROVIDERS, providerById, KIND_LABEL } from "./data/providers";
-import { MODELS, modelById, DEFAULT_MODEL_ID } from "./data/models";
+import { MODELS, modelById, DEFAULT_MODEL_ID, isAutoModel, resolveAutoModel, AUTO_LABEL } from "./data/models";
 import {
   load, save, newConversation, uid,
   type Conversation, type ProviderCfg, type Project,
@@ -114,8 +114,9 @@ export default function App() {
   );
 
   const hasLive = useMemo(() => Object.values(cfgs).some((c) => c.key?.trim()), [cfgs]);
-  const model = modelById.get(modelId) ?? MODELS[0];
-  const provider = providerById.get(model.providerId)!;
+  const auto = isAutoModel(modelId);
+  const model = auto ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
+  const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
 
   const meta =
     mode === "chat"
@@ -348,7 +349,13 @@ export default function App() {
         </main>
       </div>
 
-      <StatusBar mode={mode} model={model.name} provider={provider.name} live={hasLive} meta={meta} />
+      <StatusBar
+        mode={mode}
+        model={auto ? `${AUTO_LABEL[modelId]} → ${model.name}` : model.name}
+        provider={provider.name}
+        live={hasLive}
+        meta={meta}
+      />
 
       {showSettings && <SettingsModal cfgs={cfgs} onCfgs={setCfgs} onClose={() => setShowSettings(false)} />}
     </div>

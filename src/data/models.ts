@@ -16,6 +16,9 @@ export interface ModelInfo {
 }
 
 export const MODELS: ModelInfo[] = [
+  // Smart routing (virtual)
+  { id: "auto-free", name: "Auto Free", providerId: "auto", apiId: "auto/free", ctx: 200, priceIn: 0, priceOut: 0, tags: ["routing", "free"] },
+  { id: "auto-price", name: "Auto Price", providerId: "auto", apiId: "auto/cheapest", ctx: 200, priceIn: null, priceOut: null, tags: ["routing", "cheapest"] },
   // OpenAI
   { id: "gpt-4o", name: "GPT-4o", providerId: "openai", apiId: "gpt-4o", ctx: 128, priceIn: 2.5, priceOut: 10, vision: true, tags: ["general"] },
   { id: "gpt-4-1", name: "GPT-4.1", providerId: "openai", apiId: "gpt-4.1", ctx: 1047, priceIn: 2, priceOut: 8, vision: true, tags: ["code", "1M ctx"] },
@@ -89,4 +92,44 @@ export function fmtPrice(m: ModelInfo): string {
 export function fmtCtx(k: number): string {
   if (k >= 1000) return `${(k / 1000).toFixed(k % 1000 === 0 ? 0 : 1)}M`;
   return `${k}K`;
+}
+
+/* ---------------- smart routing ---------------- */
+
+export function isAutoModel(id: string): boolean {
+  return id === "auto-free" || id === "auto-price";
+}
+
+export const AUTO_LABEL: Record<string, string> = {
+  "auto-free": "auto free",
+  "auto-price": "auto price",
+};
+
+interface Cfg {
+  key: string;
+  baseUrl: string;
+}
+
+/**
+ * Resolves a virtual routing model to a concrete one:
+ *  - auto-free  → best free option (free tiers + local runtimes), preferring providers with a key set
+ *  - auto-price → cheapest model by $/1M input tokens among configured providers (fallback: overall cheapest)
+ */
+export function resolveAutoModel(id: string, cfgs: Record<string, Cfg> | undefined): ModelInfo {
+  const pool = MODELS.filter((m) => !isAutoModel(m.id) && m.apiId !== "openrouter/auto");
+  const hasKey = (m: ModelInfo) => !!cfgs?.[m.providerId]?.key?.trim();
+  const biggestCtx = (list: ModelInfo[]) => [...list].sort((a, b) => b.ctx - a.ctx)[0];
+
+  if (id === "auto-free") {
+    const free = pool.filter((m) => m.priceIn === null || (m.priceIn === 0 && m.priceOut === 0));
+    const keyed = free.filter(hasKey);
+    if (keyed.length) return biggestCtx(keyed);
+    if (free.length) return biggestCtx(free);
+  }
+
+  const priced = pool.filter((m) => m.priceIn !== null);
+  const keyedPriced = priced.filter(hasKey);
+  const src = keyedPriced.length ? keyedPriced : priced;
+  const sorted = [...src].sort((a, b) => (a.priceIn ?? 0) - (b.priceIn ?? 0) || (b.ctx - a.ctx));
+  return sorted[0] ?? MODELS[2] ?? MODELS[0];
 }
