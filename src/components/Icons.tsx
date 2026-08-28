@@ -42,6 +42,15 @@ export const BoltIcon = (p: IP) => (
   </S>
 );
 
+export const ServerIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="4" y="4" width="16" height="7" rx="1.5" />
+    <rect x="4" y="13" width="16" height="7" rx="1.5" />
+    <path d="M7.5 7.5h.01M7.5 16.5h.01" strokeWidth={2.4} />
+    <path d="M13 7.5h3.5M13 16.5h3.5" />
+  </S>
+);
+
 export const GiftIcon = (p: IP) => (
   <S {...p}>
     <rect x="3.5" y="8" width="17" height="4" rx="1" />

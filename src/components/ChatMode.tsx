@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MODELS, modelById, isAutoModel, resolveAutoModel, AUTO_LABEL } from "../data/models";
 import { providerById, PROVIDERS } from "../data/providers";
-import { streamChat } from "../lib/llm";
-import { demoReply } from "../lib/engine";
+import { streamChat, NoKeyError } from "../lib/llm";
 import { Markdown } from "../lib/markdown";
 import { uid, DEFAULT_PARAMS, type ChatMessage, type Conversation, type ProviderCfg } from "../lib/store";
 import ModelPicker from "./ModelPicker";
@@ -53,7 +52,9 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
   const auto = isAutoModel(modelId);
   const model = auto ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
-  const live = !!cfgs[model.providerId]?.key?.trim();
+  const keySet = !!cfgs[model.providerId]?.key?.trim();
+  const keyless = !!provider.keyless;
+  const ready = keyless || keySet || !!provider.local;
 
   function autosize() {
     const ta = taRef.current;
@@ -71,9 +72,9 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
     setInput("");
     requestAnimationFrame(autosize);
 
-    const userMsg: ChatMessage = { id: uid(), role: "user", content: text, ts: Date.now(), modelId };
+    const userMsg: ChatMessage = { id: uid(), role: "user", content: text, ts: Date.now(), modelId: model.id };
     const asstId = uid();
-    const asstMsg: ChatMessage = { id: asstId, role: "assistant", content: "", ts: Date.now(), modelId };
+    const asstMsg: ChatMessage = { id: asstId, role: "assistant", content: "", ts: Date.now(), modelId: model.id };
 
     patchConv(conv.id, (c) => ({
       ...c,
@@ -84,71 +85,60 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
     setStopReq(false);
     stopRef.current = false;
 
-    const cfg = cfgs[model.providerId];
-    let full = "";
-    let isDemo = !live;
+    const cfg = cfgs[model.providerId] ?? { key: "", baseUrl: provider.baseUrl };
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-    if (live) {
-      try {
-        const controller = new AbortController();
-        abortRef.current = controller;
-        const history = conv.messages
-          .filter((m) => m.role !== "assistant" || m.content)
-          .map((m) => ({ role: m.role, content: m.content }));
-        for await (const delta of streamChat({
-          model,
-          provider,
-          cfg: cfg!,
-          messages: [{ role: "system", content: PERSONA }, ...history, { role: "user", content: text }],
-          params: DEFAULT_PARAMS,
-          signal: controller.signal,
-        })) {
-          if (stopRef.current) break;
-          full += delta;
-          setMsg(asstId, (m) => ({ ...m, content: full }));
-        }
-      } catch (e) {
-        const aborted = e instanceof DOMException && e.name === "AbortError";
-        if (!aborted && !full) {
-          const note = e instanceof Error ? e.message : String(e);
-          full = `*Couldn't reach ${provider.name} (${note.slice(0, 120)}). Switching to demo mode.*\n\n`;
-          setMsg(asstId, (m) => ({ ...m, content: full }));
-          isDemo = true;
-        }
+    const sys =
+      PERSONA +
+      (search ? "\nThe user enabled web search: structure the answer around verifiable, up-to-date facts and list sources." : "") +
+      (deep ? "\nThe user asked for Deep Research: produce a long structured report with sections, trade-offs and next steps." : "") +
+      (thinking ? "\nReason step by step before the final answer." : "");
+
+    try {
+      const history = conv.messages
+        .filter((m) => m.role !== "assistant" || m.content)
+        .map((m) => ({ role: m.role, content: m.content }));
+      let full = "";
+      for await (const delta of streamChat({
+        model,
+        provider,
+        cfg,
+        messages: [{ role: "system", content: sys }, ...history, { role: "user", content: text }],
+        params: DEFAULT_PARAMS,
+        signal: controller.signal,
+      })) {
+        if (stopRef.current) break;
+        full += delta;
+        setMsg(asstId, (m) => ({ ...m, content: full }));
+      }
+      setMsg(asstId, (m) => ({
+        ...m,
+        content: m.content || full,
+        tokens: Math.max(1, Math.round((m.content || full).length / 3.2)),
+      }));
+    } catch (e) {
+      const aborted = (e instanceof DOMException && e.name === "AbortError") || controller.signal.aborted;
+      if (!aborted) {
+        const hint =
+          e instanceof NoKeyError
+            ? `Open **Settings** (gear icon, bottom-left) and paste a free ${provider.name} key — get one at ${provider.keyUrl ?? provider.docs}.`
+            : e instanceof Error
+              ? e.message
+              : String(e);
+        setMsg(asstId, (m) => ({
+          ...m,
+          error: true,
+          content: `**Request failed · ${provider.name}**\n\n${hint}`,
+        }));
+      } else {
+        setMsg(asstId, (m) => ({
+          ...m,
+          content: m.content ? m.content + "\n\n*— stopped —*" : "*Stopped before any token arrived.*",
+        }));
       }
     }
 
-    if (isDemo && !stopRef.current) {
-      const out = demoReply(text, model.name, provider.name, { thinking, search, deep });
-      if (out.thinking) {
-        const thinkText = out.thinking;
-        setMsg(asstId, (m) => ({ ...m, demo: true, thinking: thinkText } as ChatMessage));
-      }
-      const target = full + out.text;
-      let i = full.length;
-      await new Promise<void>((resolve) => {
-        const step = () => {
-          if (stopRef.current) {
-            resolve();
-            return;
-          }
-          i = Math.min(target.length, i + 6 + Math.floor(Math.random() * 8));
-          const slice = target.slice(0, i);
-          setMsg(asstId, (m) => ({ ...m, demo: true, content: slice }));
-          if (i >= target.length) resolve();
-          else setTimeout(step, 16);
-        };
-        step();
-      });
-      full = target.slice(0, i);
-    }
-
-    setMsg(asstId, (m) => ({
-      ...m,
-      demo: isDemo || undefined,
-      content: m.content || full,
-      tokens: Math.max(1, Math.round((m.content || full).length / 3.2)),
-    }));
     setBusy(false);
     setStopReq(false);
     stopRef.current = false;
@@ -170,9 +160,10 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
           <div className="flex h-full flex-col justify-center overflow-y-auto">
             <div className="mx-auto w-full max-w-[760px] px-6 py-12">
               <p className="overline flex items-center gap-2">
-                <span className={`h-1.5 w-1.5 rounded-full ${live ? "pulse-live bg-mint" : "bg-gold"}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${ready ? "pulse-live bg-mint" : "bg-gold"}`} />
                 session · {auto ? `${AUTO_LABEL[modelId]} → ` : ""}
-                {provider.name} · {model.name} · {live ? "live" : "demo"}
+                {provider.name} · {model.name} ·{" "}
+                {keyless ? "keyless · free" : keySet ? "key set · free tier" : provider.local ? "local runtime" : "needs a free key"}
               </p>
               <div className="mt-5">
                 <Wordmark className="text-[clamp(34px,4.6vw,58px)] leading-none" />
@@ -206,7 +197,7 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
               </div>
 
               <p className="mt-7 font-mono text-[10.5px] text-faint">
-                enter to send · shift+enter for a new line · answers stream token by token
+                enter to send · shift+enter for a new line · every model here is free
               </p>
             </div>
           </div>
@@ -292,7 +283,6 @@ function Toggle({ on, set, icon, label }: { on: boolean; set: (v: boolean) => vo
 
 function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast: boolean }) {
   const [copied, setCopied] = useState(false);
-  const [showThink, setShowThink] = useState(false);
   const streaming = busy && isLast && m.role === "assistant";
 
   if (m.role === "user") {
@@ -305,32 +295,23 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
     );
   }
 
-  const think = (m as ChatMessage & { thinking?: string }).thinking;
-
   return (
     <div className="anim-rise group mb-7 flex gap-3">
       <div className="mt-0.5 shrink-0">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-brand/30 bg-brand/8">
-          <span className="font-mono text-[11px] font-bold text-brand">&gt;_</span>
+        <span className={`flex h-7 w-7 items-center justify-center rounded-lg border ${m.error ? "border-coral/40 bg-coral/8" : "border-brand/30 bg-brand/8"}`}>
+          <span className={`font-mono text-[11px] font-bold ${m.error ? "text-coral" : "text-brand"}`}>
+            {m.error ? "✕" : ">_"}
+          </span>
         </span>
       </div>
       <div className="min-w-0 flex-1">
-        {think && (
-          <button
-            onClick={() => setShowThink((v) => !v)}
-            className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5 font-mono text-[11px] text-brand transition-colors hover:border-brand/40"
-          >
-            <BrainIcon className="h-3.5 w-3.5" />
-            {showThink ? "hide reasoning" : "model reasoning"}
-            <span className={`transition-transform ${showThink ? "rotate-180" : ""}`}>▾</span>
-          </button>
+        {m.error ? (
+          <div className="rounded-xl border border-coral/35 bg-coral/8 px-4 py-3">
+            <Markdown src={m.content || ""} />
+          </div>
+        ) : (
+          <Markdown src={m.content || ""} />
         )}
-        {think && showThink && (
-          <pre className="mb-3 overflow-x-auto whitespace-pre-wrap rounded-xl border border-line bg-panel px-4 py-3 font-mono text-[11.5px] leading-relaxed text-dim">
-            {think}
-          </pre>
-        )}
-        <Markdown src={m.content || ""} />
         {streaming && !m.content && (
           <span className="mt-1 flex items-center gap-1.5 text-brand">
             <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
@@ -340,15 +321,10 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
         )}
         {streaming && m.content && <span className="caret" />}
 
-        {!streaming && m.content && (
+        {!streaming && m.content && !m.error && (
           <div className="mt-2.5 flex items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
-            {m.demo && (
-              <span className="rounded border border-gold/40 bg-gold/10 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-gold">
-                demo
-              </span>
-            )}
             <span className="font-mono text-[10.5px] text-faint">
-              {modelById.get(m.modelId ?? "")?.name ?? "model"} · ~{m.tokens ?? "—"} tokens
+              {modelById.get(m.modelId ?? "")?.name ?? "model"} · ~{m.tokens ?? "—"} tokens · free
             </span>
             <button
               onClick={() => {

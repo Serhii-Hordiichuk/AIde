@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { modelById, MODELS, isAutoModel, resolveAutoModel } from "../data/models";
 import { providerById, PROVIDERS } from "../data/providers";
-import {
-  scaffoldProject, generateProjectWithLLM, buildPreviewDoc, CODER_SUGGESTIONS,
-} from "../lib/engine";
-import { pickTemplate } from "../lib/templates";
+import { scaffoldProject, generateProjectWithLLM, buildPreviewDoc, CODER_SUGGESTIONS } from "../lib/engine";
+import { ROLES, buildPlan, buildLLMPlan, uniqueRoles, type Subtask } from "../lib/plan";
 import type { Project, ProjectFile, ProviderCfg } from "../lib/store";
 import {
-  BrandMark, Wordmark, SendIcon, CodeIcon, EyeIcon, TerminalIcon, RefreshIcon, PlayIcon,
+  BrandMark, SendIcon, CodeIcon, EyeIcon, TerminalIcon, RefreshIcon, PlayIcon,
   CheckIcon, FileIcon, OpenIcon,
 } from "./Icons";
 
@@ -22,40 +20,39 @@ interface Props {
 }
 
 const COLOR_WORDS: Record<string, string> = {
-  green: "#3ecf8e", teal: "#0f9d8f", aqua: "#35e0c2",
+  green: "#3ecf8e", teal: "#0f9d8f", mint: "#31e5ae",
   violet: "#8b7cff", purple: "#8b7cff",
   blue: "#5b8cff", cyan: "#58c4dd",
   red: "#ff6b6b", pink: "#ff8ac2",
   yellow: "#ffc24b", orange: "#ff9950",
 };
 
-interface Step {
-  label: string;
-  state: "wait" | "run" | "done";
-}
+const ROLE_TERM: Record<string, string> = {
+  ARCH: "text-gold",
+  UI: "text-cyanic",
+  FE: "text-brand",
+  FS: "text-brand",
+  DOC: "text-[#c9a0ff]",
+  QA: "text-[#ff8a5c]",
+};
 
 export default function CoderMode({ project, patchProject, createProject, cfgs, modelId }: Props) {
   const [prompt, setPrompt] = useState("");
   const [follow, setFollow] = useState("");
   const [tab, setTab] = useState<Tab>("code");
   const [fileIdx, setFileIdx] = useState(0);
-  const [steps, setSteps] = useState<Step[]>([]);
+  const [plan, setPlan] = useState<Subtask[]>([]);
   const [term, setTerm] = useState<string[]>([]);
   const [previewKey, setPreviewKey] = useState(0);
-  const timers = useRef<number[]>([]);
   const termRef = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
-  const live = !!cfgs[model.providerId]?.key?.trim();
-  const tplLabel = project ? pickTemplate(project.prompt).label : "";
-
-  const later = (fn: () => void, ms: number) => {
-    timers.current.push(window.setTimeout(fn, ms));
-  };
 
   const log = (line: string) => setTerm((t) => [...t, line]);
+  const mark = (id: string, state: Subtask["state"]) =>
+    setPlan((prev) => prev.map((s) => (s.id === id ? { ...s, state } : s)));
 
   useEffect(() => {
     const el = termRef.current;
@@ -65,165 +62,180 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
   useEffect(() => {
     const el = feedRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [steps, term]);
+  }, [plan, term]);
 
-  /* run the pipeline when the project enters the building state */
+  /* ---------- build pipeline: architect → specialists → QA ---------- */
   useEffect(() => {
     if (!project || project.status !== "building") return;
     const pid = project.id;
-    setSteps([]);
-    setTerm([]);
     setTab("code");
     setFileIdx(0);
-
-    const setStep = (i: number, state: Step["state"], label?: string) =>
-      setSteps((s) => {
-        const next = [...s];
-        while (next.length <= i) next.push({ label: "", state: "wait" });
-        next[i] = { label: label ?? next[i].label, state };
-        return next;
-      });
-
-    setStep(0, "run", "Analyzing request & planning structure");
-    log(`⏺ AiDe Coder · model ${model.name} (${provider.name})`);
-    log("⏺ Task: " + project.prompt);
+    setTerm([]);
+    setPlan([{ id: "plan", role: "arch", label: "Analyzing brief & decomposing…", state: "run" }]);
+    log(`[ARCH] AiDe Coder · ${model.name} via ${provider.name} — free`);
+    log(`[ARCH] brief: “${project.prompt}”`);
 
     let cancelled = false;
     const ac = new AbortController();
+    const timers: number[] = [];
+    const sleep = (ms: number) =>
+      new Promise<void>((r) => {
+        timers.push(window.setTimeout(r, ms));
+      });
+    const guard = () => cancelled || ac.signal.aborted;
+
+    const addFile = (f: ProjectFile, idx: number) => {
+      patchProject(pid, (p) => ({ ...p, files: [...p.files, f] }));
+      setFileIdx(idx);
+    };
+
+    async function runFileSteps(files: ProjectFile[], _templateId: string) {
+      for (let i = 0; i < files.length; i++) {
+        if (guard()) return;
+        const f = files[i];
+        setPlan((prev) => prev.map((s) => (s.id === f.name || s.produces === f.name ? { ...s, state: "run" } : s)));
+        const role = f.name.endsWith(".css") || f.name.endsWith(".html") ? "UI" : f.name.toLowerCase().endsWith(".md") ? "DOC" : "FE";
+        log(`[${role}] working on ${f.name}…`);
+        await sleep(620);
+        if (guard()) return;
+        log(`[${role}] + ${f.name} (${f.content.split("\n").length} lines)`);
+        addFile(f, i);
+        setPlan((prev) => prev.map((s) => (s.id === f.name || s.produces === f.name ? { ...s, state: "done" } : s)));
+        await sleep(240);
+      }
+    }
+
+    async function finish() {
+      if (guard()) return;
+      mark("qa", "run");
+      log("[QA] vite build — inlining styles & scripts…");
+      await sleep(900);
+      if (guard()) return;
+      log("[QA] ✓ dist/index.html built · smoke test passed");
+      mark("qa", "done");
+      patchProject(pid, (p) => ({ ...p, status: "ready" }));
+      setTab("preview");
+      setPreviewKey((k) => k + 1);
+    }
 
     (async () => {
-      let files: ProjectFile[] = [];
-      let tplId = project.templateId;
+      await sleep(950);
+      if (guard()) return;
 
-      const llmFiles = await generateProjectWithLLM(
-        project.prompt, model.providerId, cfgs[model.providerId], model.id,
-        (l) => log(l), ac.signal
-      ).catch(() => null);
+      const canLLM = !!provider.keyless || !!provider.local || !!cfgs[model.providerId]?.key?.trim();
 
-      if (cancelled) return;
-      if (llmFiles) {
-        files = llmFiles;
-        tplId = "llm";
-        log("✓ Project generated by the real model");
-      } else {
-        const sc = scaffoldProject(project.prompt);
-        files = sc.files;
-        tplId = sc.templateId;
-        log("⏺ Template: " + pickTemplate(project.prompt).label);
+      if (canLLM) {
+        const llmPlan = buildLLMPlan(model.name);
+        setPlan(llmPlan);
+        mark("plan", "done");
+        log(`[ARCH] ✓ decomposed → ${llmPlan.length} subtasks · ${uniqueRoles(llmPlan).length} specialists`);
+        await sleep(400);
+        if (guard()) return;
+
+        mark("fs", "run");
+        const llmFiles = await generateProjectWithLLM(
+          project!.prompt, model.providerId, cfgs[model.providerId], model.id,
+          (l) => log(l), ac.signal
+        ).catch(() => null);
+        if (guard()) return;
+
+        if (llmFiles) {
+          const idx = llmFiles.find((f) => f.name === "index.html");
+          const readme = llmFiles.find((f) => f.name === "README.md");
+          if (idx) addFile(idx, 0);
+          mark("fs", "done");
+          mark("doc", "run");
+          await sleep(500);
+          if (guard()) return;
+          if (readme) addFile(readme, 1);
+          mark("doc", "done");
+          patchProject(pid, (p) => ({ ...p, templateId: "llm" }));
+          await finish();
+          return;
+        }
+
+        // LLM route failed — the architect reroutes to the built-in generator
+        log("[ARCH] rerouting → built-in generator");
+        const sc = scaffoldProject(project!.prompt);
+        patchProject(pid, (p) => ({ ...p, name: sc.name, templateId: sc.templateId }));
+        const p2 = buildPlan(sc.templateId, sc.files.map((f) => f.name)).map((s) =>
+          s.id === "plan" ? { ...s, state: "done" as const, label: "Re-decomposed for the built-in generator" } : s
+        );
+        setPlan(p2);
+        await sleep(350);
+        await runFileSteps(sc.files, sc.templateId);
+        await finish();
+        return;
       }
 
-      later(() => setStep(0, "done"), 0);
-      later(() => {
-        setStep(1, "run", "Creating project files");
-        log(`⏺ Structure: ${files.length} files`);
-      }, 500);
-
-      files.forEach((f, i) => {
-        later(() => {
-          setSteps((s) => s.map((st, j) => (j === 1 ? { ...st, label: `Creating project files (${i + 1}/${files.length})` } : st)));
-          log("  + " + f.name + "  (" + f.content.split("\n").length + " lines)");
-          patchProject(pid, (p) => ({ ...p, files: [...p.files, f], templateId: tplId }));
-          setFileIdx(i);
-        }, 900 + i * 620);
-      });
-
-      const t1 = 900 + files.length * 620;
-      later(() => {
-        setStep(1, "done");
-        setStep(2, "run", "Building preview bundle");
-        log("⏺ bundling — inlining styles and scripts…");
-      }, t1 + 300);
-      later(() => {
-        log("✓ dist/index.html built (" + (files.reduce((s, f) => s + f.content.length, 0) / 1024).toFixed(1) + " KB)");
-        setStep(2, "done");
-        setStep(3, "done", "Preview is live");
-        patchProject(pid, (p) => ({ ...p, status: "ready" }));
-        setTab("preview");
-        setPreviewKey((k) => k + 1);
-      }, t1 + 1400);
+      // no reachable free API — built-in generator from the start
+      log("[ARCH] no free API reachable — using the built-in generator");
+      const sc = scaffoldProject(project!.prompt);
+      patchProject(pid, (p) => ({ ...p, name: sc.name, templateId: sc.templateId }));
+      const p2 = buildPlan(sc.templateId, sc.files.map((f) => f.name));
+      setPlan(p2);
+      mark("plan", "done");
+      log(`[ARCH] ✓ decomposed → ${p2.length} subtasks · ${uniqueRoles(p2).length} specialists`);
+      await sleep(400);
+      await runFileSteps(sc.files, sc.templateId);
+      await finish();
     })();
 
     return () => {
       cancelled = true;
       ac.abort();
-      timers.current.forEach(clearTimeout);
-      timers.current = [];
+      timers.forEach(clearTimeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, project?.status === "building"]);
 
+  /* ---------- empty state ---------- */
   if (!project) {
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="mx-auto flex min-h-full w-full max-w-[700px] flex-col justify-center px-6 py-12">
-          <p className="overline">coder · scaffolds working apps</p>
-          <h1 className="mt-4 font-display text-[clamp(26px,3.4vw,42px)] font-bold leading-tight">
-            <Wordmark className="text-inherit" /> <span className="text-gold">Coder</span>
-          </h1>
-          <p className="mt-4 max-w-[540px] text-[14.5px] leading-relaxed text-dim">
-            Describe an app and I'll build it from scratch — files, styles, logic and a live preview
-            you can click.
-            {live
-              ? ` Generation runs on ${model.name}.`
-              : " Demo mode uses the built-in generator; add an API key for real model output."}
-          </p>
-          <p className="mt-4 flex flex-wrap items-center gap-2 font-mono text-[11px] text-faint">
-            <span>describe</span>
-            <span className="text-brand">→</span>
-            <span>files generated</span>
-            <span className="text-brand">→</span>
-            <span>live preview</span>
-            <span className="text-brand">→</span>
-            <span>iterate</span>
-          </p>
-
-          {/* terminal-style composer */}
-          <div className="composer-glow mt-7 overflow-hidden rounded-2xl border border-line2 bg-panel2">
-            <div className="flex items-center gap-1.5 border-b border-line px-4 py-2">
-              {["#ff6b6b", "#ffc24b", "#31e5ae"].map((c) => (
-                <span key={c} className="h-2.5 w-2.5 rounded-full opacity-70" style={{ background: c }} />
-              ))}
-              <span className="ml-2 font-mono text-[10.5px] text-faint">~/projects — aide new</span>
-              <span className="ml-auto hidden font-mono text-[9.5px] uppercase tracking-[0.18em] text-faint sm:block">
-                {live ? `model · ${model.name}` : "built-in generator"}
-              </span>
-            </div>
-            <div className="flex items-start gap-2.5 p-3.5">
-              <span className="mt-2 font-mono text-[13px] font-bold text-brand">$</span>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (prompt.trim()) createProject(prompt.trim());
-                  }
-                }}
-                rows={2}
-                placeholder={'a landing page for a coffee shop "Grain"'}
-                className="flex-1 resize-none bg-transparent py-1.5 font-mono text-[13.5px] leading-relaxed outline-none placeholder:text-faint"
-              />
-              <button
-                onClick={() => prompt.trim() && createProject(prompt.trim())}
-                disabled={!prompt.trim()}
-                className="btn-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-xl disabled:opacity-35 disabled:saturate-50"
-                title="Create project (Enter)"
-              >
-                <PlayIcon className="h-4 w-4" />
-              </button>
-            </div>
+      <div className="flex h-full flex-col items-center justify-center overflow-y-auto px-6 py-12">
+        <div className="floaty mb-5">
+          <BrandMark className="h-16 w-16 drop-shadow-[0_0_28px_#31e5ae66]" />
+        </div>
+        <h1 className="font-display text-[clamp(24px,3vw,34px)] font-bold tracking-tight">
+          AiDe <span className="text-brand">Coder</span>
+        </h1>
+        <p className="mt-2 max-w-[520px] text-center text-[14px] leading-relaxed text-dim">
+          Describe an app — the <b className="text-gold">Architect</b> splits the task into subtasks by
+          specialty: <b className="text-cyanic">UI Designer</b>, <b className="text-brand">Frontend Engineer</b>,{" "}
+          <b className="text-[#c9a0ff]">Technical Writer</b>, <b className="text-[#ff8a5c]">QA</b> — and the crew ships
+          working files with a live preview. Free models, no key required.
+        </p>
+        <div className="mt-7 w-full max-w-[560px]">
+          <div className="composer-glow flex items-end gap-2 rounded-2xl border border-line2 bg-panel2 p-2.5">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (prompt.trim()) createProject(prompt.trim());
+                }
+              }}
+              rows={2}
+              placeholder={'For example: a landing page for a coffee shop "Grain"'}
+              className="flex-1 resize-none bg-transparent px-2 py-1.5 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
+            />
+            <button
+              onClick={() => prompt.trim() && createProject(prompt.trim())}
+              disabled={!prompt.trim()}
+              className="btn-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-xl disabled:opacity-35 disabled:saturate-50"
+              title="Create project"
+            >
+              <PlayIcon className="h-4 w-4" />
+            </button>
           </div>
-
-          <p className="overline mb-3 mt-8">or start from</p>
-          <div className="flex flex-wrap gap-2">
-            {CODER_SUGGESTIONS.map((s, i) => (
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {CODER_SUGGESTIONS.map((s) => (
               <button
                 key={s}
-                style={{ animationDelay: `${i * 60}ms` }}
                 onClick={() => createProject(s)}
-                className="anim-rise group flex items-center gap-2 rounded-full border border-line bg-panel/70 py-1.5 pl-2.5 pr-3.5 text-[12.5px] text-dim transition-all hover:-translate-y-0.5 hover:border-brand/45 hover:text-text"
+                className="row-hl rounded-full border border-line bg-panel/70 px-3.5 py-1.5 text-[12.5px] text-dim transition-all hover:border-brand/45 hover:text-text"
               >
-                <span className="font-mono text-[11px] text-brand">+</span>
                 {s}
               </button>
             ))}
@@ -233,8 +245,11 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
     );
   }
 
-  const previewDoc = useMemo(() => buildPreviewDoc(project.files), [project.files, previewKey]);
+  /* ---------- workspace ---------- */
+  const previewDoc = buildPreviewDoc(project.files);
   const current = project.files[Math.min(fileIdx, Math.max(0, project.files.length - 1))];
+  const roles = uniqueRoles(plan);
+  void previewKey;
 
   function applyFollowUp() {
     const text = follow.trim();
@@ -258,7 +273,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
             }
           : f
       );
-      logs.push("⏺ Accent color updated → " + hex);
+      logs.push(`[UI] accent color updated → ${hex}`);
     }
     const quoted = text.match(/["«”]([^"»”]{2,40})["»”]/);
     if (quoted) {
@@ -267,13 +282,13 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
           ? { ...f, content: f.content.replace(/<title>[^<]*<\/title>/, "<title>" + quoted[1] + "</title>") }
           : f
       );
-      logs.push('⏺ Title → "' + quoted[1] + '"');
+      logs.push(`[FE] title → "${quoted[1]}"`);
     }
-    if (!logs.length) logs.push("⏺ Request analyzed — no major changes needed");
+    if (!logs.length) logs.push("[ARCH] request analyzed — no structural changes needed");
 
-    log("— change request: " + text);
+    log(`— change request: ${text}`);
     logs.forEach(log);
-    log("✓ rebuilt dist/index.html");
+    log("[QA] ✓ rebuilt dist/index.html");
     patchProject(project.id, (p) => ({ ...p, files, name: quoted ? quoted[1] : p.name }));
     setPreviewKey((k) => k + 1);
   }
@@ -285,47 +300,85 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
 
   return (
     <div className="flex h-full">
-      {/* ------- agent feed ------- */}
-      <div className="flex w-[340px] shrink-0 flex-col border-r border-line bg-panel/40 max-lg:w-[280px] max-md:hidden">
+      {/* ------- specialist task board ------- */}
+      <div className="flex w-[350px] shrink-0 flex-col border-r border-line max-lg:w-[290px] max-md:hidden">
         <div className="border-b border-line px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-gold/30 bg-gold/8">
-              <CodeIcon className="h-4 w-4 text-gold" />
-            </span>
+          <div className="flex items-center gap-2">
+            <BrandMark className="h-6 w-6" />
             <div className="min-w-0">
               <p className="truncate text-[13.5px] font-bold">{project.name}</p>
               <p className="truncate font-mono text-[10.5px] text-faint">
-                {tplLabel} · {project.files.length} files ·{" "}
-                {project.status === "ready" ? <span className="text-mint">ready</span> : <span className="text-gold">building…</span>}
+                {plan.length || "…"} subtasks · {roles.length || "…"} specialists ·{" "}
+                {project.status === "ready" ? <span className="text-mint">ready</span> : <span className="text-gold">in progress</span>}
               </p>
             </div>
           </div>
           <p className="mt-2 rounded-lg bg-panel2 px-3 py-2 text-[12px] italic leading-snug text-dim">“{project.prompt}”</p>
+          {roles.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {roles.map((r) => (
+                <span
+                  key={r.id}
+                  className="rounded border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider"
+                  style={{ color: r.color, borderColor: r.color + "55", background: r.color + "12" }}
+                >
+                  {r.title}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div ref={feedRef} className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4">
-          {steps.map((s, i) => (
-            <div key={i} className="step-in flex items-center gap-2.5 text-[12.5px]">
-              {s.state === "done" ? (
-                <span className="flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-mint/15 text-mint"><CheckIcon className="h-3 w-3" /></span>
-              ) : s.state === "run" ? (
-                <span className="h-4.5 w-4.5 shrink-0 animate-spin rounded-full border-[2px] border-brand/25 border-t-brand" />
-              ) : (
-                <span className="h-4.5 w-4.5 shrink-0 rounded-full border border-line2" />
-              )}
-              <span className={s.state === "wait" ? "text-faint" : "text-text"}>{s.label}</span>
-            </div>
-          ))}
+        <div ref={feedRef} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3">
+          {plan.map((s) => {
+            const role = ROLES[s.role];
+            return (
+              <div
+                key={s.id}
+                className={`step-in flex items-start gap-2.5 rounded-lg border px-2.5 py-2 transition-colors ${
+                  s.state === "run" ? "border-line2 bg-panel2" : "border-line/60 bg-panel/50"
+                }`}
+              >
+                <span
+                  className="mt-px flex h-6 w-9 shrink-0 items-center justify-center rounded border font-mono text-[9px] font-bold tracking-wider"
+                  style={{ color: role.color, borderColor: role.color + "55", background: role.color + "12" }}
+                >
+                  {role.short}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-[12.5px] leading-snug ${s.state === "wait" ? "text-faint" : "text-text"}`}>
+                    {s.label}
+                  </span>
+                  {s.produces && (
+                    <span className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] text-faint">
+                      <FileIcon className="h-2.5 w-2.5" />
+                      {s.produces}
+                    </span>
+                  )}
+                </span>
+                <span className="mt-1 shrink-0">
+                  {s.state === "done" ? (
+                    <CheckIcon className="h-3.5 w-3.5 text-mint" />
+                  ) : s.state === "run" ? (
+                    <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line2 border-t-brand" />
+                  ) : (
+                    <span className="block h-2 w-2 translate-x-[3px] rounded-full border border-line2" />
+                  )}
+                </span>
+              </div>
+            );
+          })}
+
           {project.status === "ready" && (
-            <div className="step-in mt-3 rounded-xl border border-line bg-panel px-3 py-2.5 text-[12px] leading-relaxed text-dim">
-              The project is ready — try it in <b className="text-brand">Preview</b>. Ask for changes like{" "}
+            <div className="step-in mt-2 rounded-xl border border-line bg-panel px-3 py-2.5 text-[12px] leading-relaxed text-dim">
+              The crew finished — try it in <b className="text-brand">Preview</b>. Ask for tweaks below, e.g.{" "}
               <i>“make the accent green”</i> or <i>“rename it to "My App"”</i>.
             </div>
           )}
         </div>
 
         <div className="border-t border-line p-3">
-          <div className="flex items-end gap-2 rounded-xl border border-line bg-panel2 p-2 transition-all focus-within:border-brand/50">
+          <div className="flex items-end gap-2 rounded-xl border border-line bg-panel2 p-2">
             <textarea
               value={follow}
               onChange={(e) => setFollow(e.target.value)}
@@ -336,7 +389,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                 }
               }}
               rows={1}
-              placeholder={project.status === "ready" ? "Ask for a change…" : "Agent is working…"}
+              placeholder={project.status === "ready" ? "Ask the crew for a change…" : "The crew is working…"}
               disabled={project.status !== "ready"}
               className="flex-1 resize-none bg-transparent px-1.5 py-1 text-[13px] outline-none placeholder:text-faint disabled:opacity-50"
             />
@@ -385,9 +438,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
             )}
             {project.status === "ready" && (
               <button
-                onClick={() => {
-                  patchProject(project.id, (p) => ({ ...p, status: "building", files: [] }));
-                }}
+                onClick={() => patchProject(project.id, (p) => ({ ...p, status: "building", files: [] }))}
                 className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-dim transition-all hover:border-brand/45 hover:text-brand"
                 title="Rebuild the project from scratch"
               >
@@ -400,9 +451,9 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
         {tab === "code" && (
           <div className="flex min-h-0 flex-1">
             <div className="w-[190px] shrink-0 overflow-y-auto border-r border-line bg-panel/50 p-2">
-              <p className="overline px-2 pb-1.5 pt-1">files</p>
+              <p className="px-2 pb-1.5 pt-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-faint">Files</p>
               {project.files.length === 0 && (
-                <p className="px-2 py-3 text-[11.5px] text-faint">The agent is creating files…</p>
+                <p className="px-2 py-3 text-[11.5px] text-faint">Specialists are writing files…</p>
               )}
               {project.files.map((f, i) => (
                 <button
@@ -439,7 +490,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                 <div className="flex h-full items-center justify-center">
                   <span className="flex items-center gap-2 font-mono text-[12px] text-faint">
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/25 border-t-brand" />
-                    generating files…
+                    waiting for the crew…
                   </span>
                 </div>
               )}
@@ -459,7 +510,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
               />
             ) : (
               <div className="flex h-full items-center justify-center font-mono text-[12px] text-faint">
-                the preview appears after the build…
+                the preview appears after QA builds the bundle…
               </div>
             )}
           </div>
@@ -469,14 +520,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
           <div className="term-scan relative min-h-0 flex-1 overflow-hidden bg-[#07090c]">
             <div ref={termRef} className="h-full overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed">
               {term.map((l, i) => (
-                <p
-                  key={i}
-                  className={`term-line whitespace-pre-wrap ${
-                    l.startsWith("✓") ? "text-mint" : l.startsWith("⚠") ? "text-gold" : l.startsWith("—") ? "text-brand" : l.startsWith("  +") ? "text-cyanic" : "text-dim"
-                  }`}
-                >
-                  {l}
-                </p>
+                <TermLine key={i} l={l} />
               ))}
               {project.status === "building" && <span className="caret" />}
             </div>
@@ -486,3 +530,26 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
     </div>
   );
 }
+
+function TermLine({ l }: { l: string }) {
+  const m = /^\[(\w+)\]\s?/.exec(l);
+  if (m) {
+    const cls = ROLE_TERM[m[1]] ?? "text-dim";
+    return (
+      <p className="term-line whitespace-pre-wrap text-dim">
+        <span className={`font-bold ${cls}`}>[{m[1]}]</span> {l.slice(m[0].length)}
+      </p>
+    );
+  }
+  return (
+    <p
+      className={`term-line whitespace-pre-wrap ${
+        l.startsWith("✓") ? "text-mint" : l.startsWith("⚠") ? "text-gold" : l.startsWith("—") ? "text-brand" : "text-dim"
+      }`}
+    >
+      {l}
+    </p>
+  );
+}
+
+

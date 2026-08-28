@@ -2,166 +2,191 @@ import type { ModelInfo } from "../data/models";
 import type { ProviderInfo } from "../data/providers";
 import type { GenParams, ProviderCfg } from "./store";
 
-export class NoKeyError extends Error {}
+/* Real API clients. Everything here talks to FREE endpoints:
+   - Pollinations: keyless hosted inference (OpenAI-compatible)
+   - Google AI Studio: free tier, streamGenerateContent SSE
+   - OpenAI-compatible: OpenRouter :free, Groq, Cerebras, SambaNova, HF, local runtimes */
 
-export interface ChatMsg {
+export class NoKeyError extends Error {
+  constructor(name: string) {
+    super(`No API key set for ${name}. Add a free key in Settings.`);
+  }
+}
+
+export interface ChatMessageParam {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
-export interface StreamArgs {
+export interface ChatOpts {
   model: ModelInfo;
   provider: ProviderInfo;
   cfg: ProviderCfg;
-  messages: ChatMsg[];
+  messages: ChatMessageParam[];
   params: GenParams;
-  signal?: AbortSignal;
+  signal: AbortSignal;
 }
 
-export const estimateTokens = (text: string) => Math.max(1, Math.round(text.length / 3.2));
+export async function* streamChat(opts: ChatOpts): AsyncGenerator<string> {
+  const { provider, cfg } = opts;
+  const needsKey = !provider.keyless && !provider.local;
+  if (needsKey && !cfg.key?.trim()) throw new NoKeyError(provider.name);
 
-function sseLines(reader: ReadableStreamDefaultReader<Uint8Array>, signal?: AbortSignal) {
+  if (provider.id === "google") yield* googleStream(opts);
+  else yield* openaiCompatible(opts); // pollinations, openrouter, groq, cerebras, sambanova, hf, local
+}
+
+/* ---------- shared SSE helpers ---------- */
+
+async function* sseDataLines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  const reader = body.getReader();
   const dec = new TextDecoder();
   let buf = "";
-  return {
-    async *[Symbol.asyncIterator](): AsyncGenerator<string> {
-      for (;;) {
-        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-        const { done, value } = await reader.read();
-        if (done) return;
-        buf += dec.decode(value, { stream: true });
-        let idx: number;
-        while ((idx = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, idx).trim();
-          buf = buf.slice(idx + 1);
-          if (line.startsWith("data:")) yield line.slice(5).trim();
-        }
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (line.startsWith("data:")) {
+        const data = line.slice(5).trim();
+        if (data && data !== "[DONE]") yield data;
       }
-    },
-  };
+    }
+  }
 }
 
-/** Single streaming adapter for all providers (OpenAI-compatible, Anthropic SSE, Google SSE). */
-export async function* streamChat(args: StreamArgs): AsyncGenerator<string> {
-  const { model, provider, cfg, messages, params, signal } = args;
-  const key = cfg.key?.trim();
-  if (!key && !provider.local) throw new NoKeyError("No API key configured");
-  const base = (cfg.baseUrl || provider.baseUrl).replace(/\/+$/, "");
+function baseOf(cfg: ProviderCfg, provider: ProviderInfo): string {
+  return (cfg.baseUrl?.trim() || provider.baseUrl).replace(/\/+$/, "");
+}
 
-  if (provider.id === "anthropic") {
-    const sys = [params.system, messages.find((m) => m.role === "system")?.content ?? ""]
-      .filter(Boolean)
-      .join("\n");
-    const res = await fetch(`${base}/messages`, {
+/* ---------- OpenAI-compatible (covers Pollinations keyless) ---------- */
+
+async function* openaiCompatible(opts: ChatOpts): AsyncGenerator<string> {
+  const { model, provider, cfg, messages, params, signal } = opts;
+  const isPplx = provider.id === "pollinations";
+  const url = isPplx ? baseOf(cfg, provider) + "/openai" : baseOf(cfg, provider) + "/chat/completions";
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (cfg.key?.trim()) {
+    headers["Authorization"] = `Bearer ${cfg.key.trim()}`;
+    if (provider.id === "huggingface") headers["x-api-key"] = cfg.key.trim();
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
       method: "POST",
+      headers,
       signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
       body: JSON.stringify({
         model: model.apiId,
-        max_tokens: params.maxTokens,
+        messages,
         temperature: params.temperature,
         top_p: params.topP,
+        max_tokens: params.maxTokens,
         stream: true,
-        ...(sys ? { system: sys } : {}),
-        messages: messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content })),
       }),
     });
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-    for await (const data of sseLines(res.body.getReader(), signal)) {
-      if (!data || data === "[DONE]") continue;
-      try {
-        const j = JSON.parse(data);
-        if (j.type === "content_block_delta") yield j.delta?.text ?? "";
-      } catch { /* keep-alive line */ }
-    }
-    return;
-  }
-
-  if (provider.id === "google") {
-    const contents = messages
-      .filter((m) => m.role !== "system")
-      .map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
-    const res = await fetch(
-      `${base}/models/${model.apiId}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`,
-      {
-        method: "POST",
-        signal,
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: params.temperature,
-            topP: params.topP,
-            maxOutputTokens: params.maxTokens,
-            ...(params.system ? { systemInstruction: { parts: [{ text: params.system }] } } : {}),
-          },
-        }),
-      }
+  } catch (e) {
+    if (signal.aborted) throw e;
+    throw new Error(
+      provider.local
+        ? `cannot reach ${provider.name} at ${baseOf(cfg, provider)} — is the server running?`
+        : `network error while contacting ${provider.name}`
     );
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-    for await (const data of sseLines(res.body.getReader(), signal)) {
-      if (!data || data === "[DONE]") continue;
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${provider.name} responded HTTP ${res.status}${text ? `: ${text.slice(0, 140)}` : ""}`);
+  }
+
+  const ct = res.headers.get("content-type") ?? "";
+
+  if (ct.includes("text/event-stream") && res.body) {
+    for await (const data of sseDataLines(res.body)) {
       try {
-        const j = JSON.parse(data);
-        const t = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("");
-        if (t) yield t;
-      } catch { /* keep-alive line */ }
+        const json = JSON.parse(data);
+        const delta: string = json.choices?.[0]?.delta?.content ?? "";
+        if (delta) yield delta;
+      } catch {
+        /* keep-alive line */
+      }
     }
     return;
   }
 
-  // OpenAI-compatible: OpenRouter, OpenAI, DeepSeek, xAI, Mistral, Cohere, Perplexity,
-  // Groq, Together, Fireworks, Cerebras, SambaNova, HF, Ollama, LM Studio, vLLM, llama.cpp, LocalAI, KoboldCPP
-  const res = await fetch(`${base}/chat/completions`, {
-    method: "POST",
-    signal,
-    headers: {
-      "content-type": "application/json",
-      ...(key ? { authorization: `Bearer ${key}` } : {}),
-      ...(provider.id === "openrouter"
-        ? { "HTTP-Referer": location.origin, "X-Title": "AiDe Studio" }
-        : {}),
-    },
-    body: JSON.stringify({
-      model: model.apiId,
-      stream: true,
-      messages: params.system ? [{ role: "system", content: params.system }, ...messages] : messages,
-      max_tokens: params.maxTokens,
-      temperature: params.temperature,
-      top_p: params.topP,
-    }),
-  });
-  if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  for await (const data of sseLines(res.body.getReader(), signal)) {
-    if (!data) continue;
-    if (data === "[DONE]") return;
-    try {
-      const j = JSON.parse(data);
-      const delta = j.choices?.[0]?.delta?.content ?? j.choices?.[0]?.text ?? "";
-      if (delta) yield delta;
-    } catch { /* keep-alive line */ }
+  // Non-streaming fallback (some endpoints ignore stream:true)
+  const data = await res.json().catch(() => null);
+  const content: string =
+    data?.choices?.[0]?.message?.content ??
+    data?.choices?.[0]?.text ??
+    (typeof data === "string" ? data : "");
+  if (!content) throw new Error(`${provider.name} returned an empty response`);
+  // deliver in slices so the UI still feels live
+  for (let i = 0; i < content.length; i += 24) {
+    yield content.slice(i, i + 24);
+    await new Promise((r) => setTimeout(r, 12));
   }
 }
 
-/** Simple availability check via the /models endpoint. */
-export async function pingProvider(provider: ProviderInfo, cfg: ProviderCfg): Promise<string> {
-  const base = (cfg.baseUrl || provider.baseUrl).replace(/\/+$/, "");
+/* ---------- Google AI Studio (free tier) ---------- */
+
+async function* googleStream(opts: ChatOpts): AsyncGenerator<string> {
+  const { model, provider, cfg, messages, params, signal } = opts;
   const key = cfg.key?.trim();
-  const url = provider.id === "google" ? `${base}/models?key=${encodeURIComponent(key)}` : `${base}/models`;
-  const res = await fetch(url, {
-    headers: key
-      ? provider.id === "anthropic"
-        ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
-        : { authorization: `Bearer ${key}` }
-      : {},
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  const j = await res.json().catch(() => ({}));
-  const n = Array.isArray(j?.data) ? j.data.length : Array.isArray(j?.models) ? j.models.length : null;
-  return n ? `${n} models` : "ok";
+  if (!key) throw new NoKeyError(provider.name);
+
+  const system = messages.find((m) => m.role === "system")?.content;
+  const contents = messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+  const url =
+    `${baseOf(cfg, provider)}/models/${model.apiId}:streamGenerateContent` +
+    `?alt=sse&key=${encodeURIComponent(key)}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify({
+        contents,
+        ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+        generationConfig: {
+          temperature: params.temperature,
+          topP: params.topP,
+          maxOutputTokens: params.maxTokens,
+        },
+      }),
+    });
+  } catch (e) {
+    if (signal.aborted) throw e;
+    throw new Error(`network error while contacting ${provider.name}`);
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${provider.name} responded HTTP ${res.status}${text ? `: ${text.slice(0, 140)}` : ""}`);
+  }
+
+  if (!res.body) throw new Error(`${provider.name} returned no stream`);
+
+  for await (const data of sseDataLines(res.body)) {
+    try {
+      const json = JSON.parse(data);
+      const parts = json.candidates?.[0]?.content?.parts ?? [];
+      for (const p of parts) if (p.text) yield p.text;
+    } catch {
+      /* keep-alive line */
+    }
+  }
 }

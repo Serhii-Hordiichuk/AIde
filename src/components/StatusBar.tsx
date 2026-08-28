@@ -4,12 +4,18 @@ interface Props {
   mode: "chat" | "coder";
   model: string;
   provider: string;
-  live: boolean;
+  status: "ready" | "local" | "nokey";
   meta: string;
 }
 
 /* IDE-style status strip: live session telemetry at a glance. */
-export default function StatusBar({ mode, model, provider, live, meta }: Props) {
+export default function StatusBar({ mode, model, provider, status, meta }: Props) {
+  const tone =
+    status === "ready" ? "text-mint" : status === "local" ? "text-cyanic" : "text-gold";
+  const dot =
+    status === "ready" ? "pulse-live bg-mint" : status === "local" ? "bg-cyanic" : "bg-gold";
+  const label = status === "ready" ? "ready · free" : status === "local" ? "local" : "needs key";
+
   return (
     <div className="statusbar relative z-20">
       <span className="flex items-center gap-1.5 font-semibold uppercase tracking-[0.14em] text-text">
@@ -17,20 +23,20 @@ export default function StatusBar({ mode, model, provider, live, meta }: Props) 
         {mode}
       </span>
       <span className="sep" />
-      <span className="truncate max-w-[220px]">{model}</span>
+      <span className="max-w-[220px] truncate">{model}</span>
       <span className="sep max-sm:hidden" />
-      <span className="truncate max-w-[160px] max-sm:hidden">{provider}</span>
+      <span className="max-w-[160px] truncate max-sm:hidden">{provider}</span>
       <span className="flex-1" />
       <span className="max-md:hidden">{meta}</span>
       <span className="sep max-md:hidden" />
-      <span className={`flex items-center gap-1.5 font-semibold uppercase tracking-[0.14em] ${live ? "text-mint" : "text-gold"}`}>
-        <span className={`h-1.5 w-1.5 rounded-full ${live ? "pulse-live bg-mint" : "bg-gold"}`} />
-        {live ? "live" : "demo"}
+      <span className={`flex items-center gap-1.5 font-semibold uppercase tracking-[0.14em] ${tone}`}>
+        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+        {label}
       </span>
       <span className="sep" />
       <span className="flex items-center gap-1.5 text-faint">
         <BrandMark className="h-3.5 w-3.5" />
-        aide v1.0
+        aide v1.1 · all models free
       </span>
     </div>
   );

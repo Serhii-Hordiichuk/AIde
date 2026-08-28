@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PROVIDERS, providerById, KIND_LABEL } from "./data/providers";
-import { MODELS, modelById, DEFAULT_MODEL_ID, isAutoModel, resolveAutoModel, AUTO_LABEL } from "./data/models";
+import {
+  MODELS, modelById, DEFAULT_MODEL_ID, isAutoModel, resolveAutoModel, AUTO_LABEL,
+} from "./data/models";
 import {
   load, save, newConversation, uid,
   type Conversation, type ProviderCfg, type Project,
@@ -113,10 +115,13 @@ export default function App() {
     [activeProjectId]
   );
 
-  const hasLive = useMemo(() => Object.values(cfgs).some((c) => c.key?.trim()), [cfgs]);
   const auto = isAutoModel(modelId);
   const model = auto ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
+  const keySet = !!cfgs[model.providerId]?.key?.trim();
+  const status: "ready" | "local" | "nokey" =
+    provider.keyless || keySet ? "ready" : provider.local ? "local" : "nokey";
+  const nKeys = useMemo(() => Object.values(cfgs).filter((c) => c.key?.trim()).length, [cfgs]);
 
   const meta =
     mode === "chat"
@@ -288,13 +293,9 @@ export default function App() {
             >
               <GearIcon className="h-4 w-4" />
               Settings
-              <span
-                className={`ml-auto flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${
-                  hasLive ? "border-mint/40 text-mint" : "border-gold/40 text-gold"
-                }`}
-              >
-                <span className={`h-1 w-1 rounded-full ${hasLive ? "pulse-live bg-mint" : "bg-gold"}`} />
-                {hasLive ? "live" : "demo"}
+              <span className="ml-auto flex items-center gap-1.5 rounded-full border border-brand/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-brand">
+                <span className="pulse-live h-1 w-1 rounded-full bg-brand" />
+                {nKeys ? `${nKeys} keys · free` : "free · keyless"}
               </span>
             </button>
           </footer>
@@ -353,7 +354,7 @@ export default function App() {
         mode={mode}
         model={auto ? `${AUTO_LABEL[modelId]} → ${model.name}` : model.name}
         provider={provider.name}
-        live={hasLive}
+        status={status}
         meta={meta}
       />
 
@@ -382,12 +383,12 @@ function SettingsModal({
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 6000);
-      const res = await fetch(cfg.baseUrl.replace(/\/$/, "") + "/models", {
-        headers: cfg.key?.trim()
-          ? { Authorization: `Bearer ${cfg.key.trim()}`, "x-api-key": cfg.key.trim() }
-          : undefined,
-        signal: ctrl.signal,
-      });
+      const headers: Record<string, string> = {};
+      if (cfg.key?.trim()) {
+        headers["Authorization"] = `Bearer ${cfg.key.trim()}`;
+        headers["x-api-key"] = cfg.key.trim();
+      }
+      const res = await fetch(cfg.baseUrl.replace(/\/+$/, "") + "/models", { headers, signal: ctrl.signal });
       clearTimeout(t);
       setTestState((s) => ({ ...s, [id]: res.ok ? "ok" : "fail" }));
     } catch {
@@ -402,8 +403,10 @@ function SettingsModal({
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
           <KeyIcon className="h-4.5 w-4.5 text-brand" />
           <div>
-            <h2 className="font-display text-[15px] font-bold">Provider settings</h2>
-            <p className="font-mono text-[10.5px] text-faint">keys never leave your browser — stored in localStorage only</p>
+            <h2 className="font-display text-[15px] font-bold">Free providers</h2>
+            <p className="font-mono text-[10.5px] text-faint">
+              everything here is $0 — keys (when needed) never leave your browser
+            </p>
           </div>
           <button onClick={onClose} className="icon-btn ml-auto" title="Close">
             <XIcon className="h-4 w-4" />
@@ -411,7 +414,7 @@ function SettingsModal({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {(["aggregator", "cloud", "inference", "local"] as const).map((kind) => (
+          {(["cloud", "aggregator", "inference", "local"] as const).map((kind) => (
             <section key={kind} className="mb-5">
               <p className="overline mb-2">{KIND_LABEL[kind]}</p>
               <div className="space-y-2">
@@ -424,7 +427,11 @@ function SettingsModal({
                       <div className="flex items-center gap-2.5">
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.accent }} />
                         <span className="text-[13.5px] font-bold">{p.name}</span>
-                        {hasKey ? (
+                        {p.keyless ? (
+                          <span className="flex items-center gap-1 rounded-full border border-brand/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-brand">
+                            <CheckIcon className="h-2.5 w-2.5" /> keyless · ready
+                          </span>
+                        ) : hasKey ? (
                           <span className="flex items-center gap-1 rounded-full border border-mint/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-mint">
                             <CheckIcon className="h-2.5 w-2.5" /> key set
                           </span>
@@ -434,12 +441,12 @@ function SettingsModal({
                           </span>
                         ) : null}
                         <a
-                          href={p.docs}
+                          href={p.keyUrl ?? p.docs}
                           target="_blank"
                           rel="noreferrer"
                           className="ml-auto font-mono text-[10px] text-faint underline decoration-line2 underline-offset-2 transition-colors hover:text-brand"
                         >
-                          docs
+                          {p.keyUrl ? "get free key" : "docs"}
                         </a>
                         <button
                           onClick={() => test(p.id)}
@@ -450,22 +457,26 @@ function SettingsModal({
                         </button>
                       </div>
                       <p className="mt-1 text-[11.5px] leading-snug text-faint">{p.note}</p>
-                      <div className="mt-2 flex gap-2">
-                        <input
-                          type="password"
-                          value={cfg.key}
-                          onChange={(e) => onCfgs({ ...cfgs, [p.id]: { ...cfg, key: e.target.value } })}
-                          placeholder={p.keyName ?? "API key (optional)"}
-                          className="field flex-1 font-mono text-[12px]"
-                          autoComplete="off"
-                        />
-                        <input
-                          value={cfg.baseUrl}
-                          onChange={(e) => onCfgs({ ...cfgs, [p.id]: { ...cfg, baseUrl: e.target.value } })}
-                          className="field w-[220px] font-mono text-[11px] max-sm:hidden"
-                          title="Base URL"
-                        />
-                      </div>
+                      {!p.keyless && (
+                        <div className="mt-2 flex gap-2">
+                          {!p.local && (
+                            <input
+                              type="password"
+                              value={cfg.key}
+                              onChange={(e) => onCfgs({ ...cfgs, [p.id]: { ...cfg, key: e.target.value } })}
+                              placeholder={p.keyName ?? "API key"}
+                              className="field flex-1 font-mono text-[12px]"
+                              autoComplete="off"
+                            />
+                          )}
+                          <input
+                            value={cfg.baseUrl}
+                            onChange={(e) => onCfgs({ ...cfgs, [p.id]: { ...cfg, baseUrl: e.target.value } })}
+                            className={`field font-mono text-[11px] ${p.local ? "flex-1" : "w-[220px] max-sm:hidden"}`}
+                            title="Base URL"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -476,8 +487,8 @@ function SettingsModal({
 
         <div className="border-t border-line px-5 py-3">
           <p className="font-mono text-[10.5px] text-faint">
-            Without a key AiDe answers in demo mode (marked with a badge). With a key — requests stream
-            directly from the provider's API.
+            AiDe works out of the box on keyless Pollinations models. Add free keys to unlock bigger
+            free tiers (Gemini, Groq, Cerebras…) or point it at your local runtimes.
           </p>
         </div>
       </div>

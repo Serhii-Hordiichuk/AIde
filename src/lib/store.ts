@@ -3,7 +3,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   modelId?: string;
-  demo?: boolean;
+  error?: boolean;
   ts: number;
   tokens?: number;
 }
