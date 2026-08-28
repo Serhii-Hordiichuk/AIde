@@ -1,12 +1,13 @@
-export type Role = "user" | "assistant";
-
-export interface Message {
+export interface ChatMessage {
   id: string;
-  role: Role;
+  role: "user" | "assistant";
   content: string;
-  modelId?: string;
+  thinking?: string;
+  model?: string;
+  providerId?: string;
   demo?: boolean;
-  stopped?: boolean;
+  tokens?: { in: number; out: number };
+  cost?: number | null;
   ts: number;
 }
 
@@ -14,9 +15,13 @@ export interface Conversation {
   id: string;
   title: string;
   modelId: string;
-  messages: Message[];
+  messages: ChatMessage[];
   createdAt: number;
-  updatedAt: number;
+}
+
+export interface ProviderCfg {
+  key: string;
+  baseUrl: string;
 }
 
 export interface GenParams {
@@ -26,21 +31,30 @@ export interface GenParams {
   system: string;
 }
 
-export interface ProviderCfg {
-  key: string;
-  baseUrl: string;
+export interface ProjectFile {
+  name: string;
+  content: string;
+}
+
+export type ProjectStatus = "running" | "ready" | "failed";
+
+export interface Project {
+  id: string;
+  name: string;
+  desc: string;
+  templateId: string;
+  status: ProjectStatus;
+  files: ProjectFile[];
+  source: "demo" | "llm";
+  createdAt: number;
 }
 
 export const DEFAULT_PARAMS: GenParams = {
   temperature: 0.7,
   topP: 0.95,
-  maxTokens: 4096,
-  system: "Ти — QStudio, мультипровайдерний асистент. Відповідай українською, стисло і по суті, з markdown-форматуванням там, де це доречно.",
+  maxTokens: 8192,
+  system: "Ти — QStudio, helpful AI-асистент. Відповідай українською, стисло і по суті.",
 };
-
-export function uid(): string {
-  return Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
-}
 
 export function load<T>(key: string, fallback: T): T {
   try {
@@ -56,25 +70,18 @@ export function save(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* quota / private mode — ігноруємо */
+    /* переповнення сховища — ігноруємо */
   }
 }
 
+export function uid(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
 export function newConversation(modelId: string): Conversation {
-  const now = Date.now();
-  return { id: uid(), title: "Нова розмова", modelId, messages: [], createdAt: now, updatedAt: now };
+  return { id: uid(), title: "Новий чат", modelId, messages: [], createdAt: Date.now() };
 }
 
-export function estTokens(s: string): number {
-  return Math.max(1, Math.round(s.length / 3.6));
-}
-
-export function fmtTime(ts: number): string {
-  const d = new Date(ts);
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  if (sameDay) return `${hh}:${mm}`;
-  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")} ${hh}:${mm}`;
+export function toast(msg: string) {
+  window.dispatchEvent(new CustomEvent("qs-toast", { detail: msg }));
 }
