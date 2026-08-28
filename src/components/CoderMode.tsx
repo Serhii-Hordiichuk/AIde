@@ -7,7 +7,7 @@ import {
 import { pickTemplate } from "../lib/templates";
 import type { Project, ProjectFile, ProviderCfg } from "../lib/store";
 import {
-  BrandMark, SendIcon, CodeIcon, EyeIcon, TerminalIcon, RefreshIcon, PlayIcon,
+  BrandMark, Wordmark, SendIcon, CodeIcon, EyeIcon, TerminalIcon, RefreshIcon, PlayIcon,
   CheckIcon, FileIcon, OpenIcon,
 } from "./Icons";
 
@@ -48,6 +48,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
 
   const model = modelById.get(modelId) ?? MODELS[0];
   const provider = providerById.get(model.providerId)!;
+  const live = !!cfgs[model.providerId]?.key?.trim();
   const tplLabel = project ? pickTemplate(project.prompt).label : "";
 
   const later = (fn: () => void, ms: number) => {
@@ -130,7 +131,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
       later(() => {
         setStep(1, "done");
         setStep(2, "run", "Building preview bundle");
-        log("⏺ vite build — inlining styles and scripts…");
+        log("⏺ bundling — inlining styles and scripts…");
       }, t1 + 300);
       later(() => {
         log("✓ dist/index.html built (" + (files.reduce((s, f) => s + f.content.length, 0) / 1024).toFixed(1) + " KB)");
@@ -153,50 +154,76 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
 
   if (!project) {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-6 pb-16">
-        <div className="floaty mb-5">
-          <BrandMark className="h-16 w-16 drop-shadow-[0_0_28px_#35e0c266]" />
-        </div>
-        <h1 className="font-display text-[clamp(24px,3vw,34px)] font-bold tracking-tight">
-          AiDe <span className="text-aqua2">Coder</span>
-        </h1>
-        <p className="mt-2 max-w-[460px] text-center text-[14px] leading-relaxed text-dim">
-          Describe an app — I'll build it from scratch: files, styles, logic and a working preview.
-          {cfgs[model.providerId]?.key?.trim()
-            ? ` Generation runs on ${model.name}.`
-            : " In demo mode the built-in generator does the work."}
-        </p>
-        <div className="mt-7 w-full max-w-[560px]">
-          <div className="composer-glow flex items-end gap-2 rounded-2xl border border-line2 bg-panel2 p-2.5">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (prompt.trim()) createProject(prompt.trim());
-                }
-              }}
-              rows={2}
-              placeholder={'For example: a landing page for a coffee shop "Grain"'}
-              className="flex-1 resize-none bg-transparent px-2 py-1.5 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
-            />
-            <button
-              onClick={() => prompt.trim() && createProject(prompt.trim())}
-              disabled={!prompt.trim()}
-              className="btn-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-xl disabled:opacity-35 disabled:saturate-50"
-              title="Create project"
-            >
-              <PlayIcon className="h-4 w-4" />
-            </button>
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto flex min-h-full w-full max-w-[700px] flex-col justify-center px-6 py-12">
+          <p className="overline">coder · scaffolds working apps</p>
+          <h1 className="mt-4 font-display text-[clamp(26px,3.4vw,42px)] font-bold leading-tight">
+            <Wordmark className="text-inherit" /> <span className="text-gold">Coder</span>
+          </h1>
+          <p className="mt-4 max-w-[540px] text-[14.5px] leading-relaxed text-dim">
+            Describe an app and I'll build it from scratch — files, styles, logic and a live preview
+            you can click.
+            {live
+              ? ` Generation runs on ${model.name}.`
+              : " Demo mode uses the built-in generator; add an API key for real model output."}
+          </p>
+          <p className="mt-4 flex flex-wrap items-center gap-2 font-mono text-[11px] text-faint">
+            <span>describe</span>
+            <span className="text-brand">→</span>
+            <span>files generated</span>
+            <span className="text-brand">→</span>
+            <span>live preview</span>
+            <span className="text-brand">→</span>
+            <span>iterate</span>
+          </p>
+
+          {/* terminal-style composer */}
+          <div className="composer-glow mt-7 overflow-hidden rounded-2xl border border-line2 bg-panel2">
+            <div className="flex items-center gap-1.5 border-b border-line px-4 py-2">
+              {["#ff6b6b", "#ffc24b", "#31e5ae"].map((c) => (
+                <span key={c} className="h-2.5 w-2.5 rounded-full opacity-70" style={{ background: c }} />
+              ))}
+              <span className="ml-2 font-mono text-[10.5px] text-faint">~/projects — aide new</span>
+              <span className="ml-auto hidden font-mono text-[9.5px] uppercase tracking-[0.18em] text-faint sm:block">
+                {live ? `model · ${model.name}` : "built-in generator"}
+              </span>
+            </div>
+            <div className="flex items-start gap-2.5 p-3.5">
+              <span className="mt-2 font-mono text-[13px] font-bold text-brand">$</span>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (prompt.trim()) createProject(prompt.trim());
+                  }
+                }}
+                rows={2}
+                placeholder={'a landing page for a coffee shop "Grain"'}
+                className="flex-1 resize-none bg-transparent py-1.5 font-mono text-[13.5px] leading-relaxed outline-none placeholder:text-faint"
+              />
+              <button
+                onClick={() => prompt.trim() && createProject(prompt.trim())}
+                disabled={!prompt.trim()}
+                className="btn-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-xl disabled:opacity-35 disabled:saturate-50"
+                title="Create project (Enter)"
+              >
+                <PlayIcon className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {CODER_SUGGESTIONS.map((s) => (
+
+          <p className="overline mb-3 mt-8">or start from</p>
+          <div className="flex flex-wrap gap-2">
+            {CODER_SUGGESTIONS.map((s, i) => (
               <button
                 key={s}
+                style={{ animationDelay: `${i * 60}ms` }}
                 onClick={() => createProject(s)}
-                className="row-hl rounded-full border border-line bg-panel/70 px-3.5 py-1.5 text-[12.5px] text-dim transition-all hover:border-aqua/45 hover:text-text"
+                className="anim-rise group flex items-center gap-2 rounded-full border border-line bg-panel/70 py-1.5 pl-2.5 pr-3.5 text-[12.5px] text-dim transition-all hover:-translate-y-0.5 hover:border-brand/45 hover:text-text"
               >
+                <span className="font-mono text-[11px] text-brand">+</span>
                 {s}
               </button>
             ))}
@@ -259,15 +286,17 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
   return (
     <div className="flex h-full">
       {/* ------- agent feed ------- */}
-      <div className="flex w-[340px] shrink-0 flex-col border-r border-line max-lg:w-[280px] max-md:hidden">
+      <div className="flex w-[340px] shrink-0 flex-col border-r border-line bg-panel/40 max-lg:w-[280px] max-md:hidden">
         <div className="border-b border-line px-4 py-3">
-          <div className="flex items-center gap-2">
-            <BrandMark className="h-6 w-6" />
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-gold/30 bg-gold/8">
+              <CodeIcon className="h-4 w-4 text-gold" />
+            </span>
             <div className="min-w-0">
               <p className="truncate text-[13.5px] font-bold">{project.name}</p>
               <p className="truncate font-mono text-[10.5px] text-faint">
                 {tplLabel} · {project.files.length} files ·{" "}
-                {project.status === "ready" ? <span className="text-mint">ready</span> : <span className="text-solar">building…</span>}
+                {project.status === "ready" ? <span className="text-mint">ready</span> : <span className="text-gold">building…</span>}
               </p>
             </div>
           </div>
@@ -280,7 +309,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
               {s.state === "done" ? (
                 <span className="flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-mint/15 text-mint"><CheckIcon className="h-3 w-3" /></span>
               ) : s.state === "run" ? (
-                <span className="h-4.5 w-4.5 shrink-0 animate-spin rounded-full border-[2px] border-aqua/25 border-t-aqua" />
+                <span className="h-4.5 w-4.5 shrink-0 animate-spin rounded-full border-[2px] border-brand/25 border-t-brand" />
               ) : (
                 <span className="h-4.5 w-4.5 shrink-0 rounded-full border border-line2" />
               )}
@@ -289,14 +318,14 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
           ))}
           {project.status === "ready" && (
             <div className="step-in mt-3 rounded-xl border border-line bg-panel px-3 py-2.5 text-[12px] leading-relaxed text-dim">
-              The project is ready — try it in <b className="text-aqua2">Preview</b>. You can ask for changes,
-              e.g. <i>“make the accent green”</i> or <i>“rename it to "My App"”</i>.
+              The project is ready — try it in <b className="text-brand">Preview</b>. Ask for changes like{" "}
+              <i>“make the accent green”</i> or <i>“rename it to "My App"”</i>.
             </div>
           )}
         </div>
 
         <div className="border-t border-line p-3">
-          <div className="flex items-end gap-2 rounded-xl border border-line bg-panel2 p-2">
+          <div className="flex items-end gap-2 rounded-xl border border-line bg-panel2 p-2 transition-all focus-within:border-brand/50">
             <textarea
               value={follow}
               onChange={(e) => setFollow(e.target.value)}
@@ -336,7 +365,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-all ${
-                tab === t.id ? "bg-aqua/12 text-aqua2" : "text-dim hover:bg-panel2 hover:text-text"
+                tab === t.id ? "bg-brand/12 text-brand" : "text-dim hover:bg-panel2 hover:text-text"
               }`}
             >
               <t.icon className="h-3.5 w-3.5" />
@@ -359,7 +388,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                 onClick={() => {
                   patchProject(project.id, (p) => ({ ...p, status: "building", files: [] }));
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-dim transition-all hover:border-aqua/45 hover:text-aqua2"
+                className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-dim transition-all hover:border-brand/45 hover:text-brand"
                 title="Rebuild the project from scratch"
               >
                 <RefreshIcon className="h-3.5 w-3.5" /> Rebuild
@@ -371,7 +400,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
         {tab === "code" && (
           <div className="flex min-h-0 flex-1">
             <div className="w-[190px] shrink-0 overflow-y-auto border-r border-line bg-panel/50 p-2">
-              <p className="px-2 pb-1.5 pt-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-faint">Files</p>
+              <p className="overline px-2 pb-1.5 pt-1">files</p>
               {project.files.length === 0 && (
                 <p className="px-2 py-3 text-[11.5px] text-faint">The agent is creating files…</p>
               )}
@@ -380,7 +409,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                   key={f.name}
                   onClick={() => setFileIdx(i)}
                   className={`step-in flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left font-mono text-[11.5px] transition-colors ${
-                    i === Math.min(fileIdx, project.files.length - 1) ? "bg-aqua/12 text-aqua2" : "text-dim hover:bg-panel2"
+                    i === Math.min(fileIdx, project.files.length - 1) ? "bg-brand/12 text-brand" : "text-dim hover:bg-panel2"
                   }`}
                 >
                   <FileIcon className="h-3.5 w-3.5 shrink-0" />
@@ -392,7 +421,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
               {current ? (
                 <div>
                   <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-panel/90 px-4 py-2 backdrop-blur">
-                    <span className="font-mono text-[11.5px] text-aqua2">{current.name}</span>
+                    <span className="font-mono text-[11.5px] text-brand">{current.name}</span>
                     <span className="font-mono text-[10px] text-faint">
                       {current.content.split("\n").length} lines · {(current.content.length / 1024).toFixed(1)} KB
                     </span>
@@ -409,7 +438,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <span className="flex items-center gap-2 font-mono text-[12px] text-faint">
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-aqua/25 border-t-aqua" />
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/25 border-t-brand" />
                     generating files…
                   </span>
                 </div>
@@ -443,7 +472,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                 <p
                   key={i}
                   className={`term-line whitespace-pre-wrap ${
-                    l.startsWith("✓") ? "text-mint" : l.startsWith("⚠") ? "text-solar" : l.startsWith("—") ? "text-aqua2" : l.startsWith("  +") ? "text-cyanic" : "text-dim"
+                    l.startsWith("✓") ? "text-mint" : l.startsWith("⚠") ? "text-gold" : l.startsWith("—") ? "text-brand" : l.startsWith("  +") ? "text-cyanic" : "text-dim"
                   }`}
                 >
                   {l}

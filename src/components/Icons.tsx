@@ -17,26 +17,24 @@ const S = ({ className = "w-4 h-4", children }: IP & { children: React.ReactNode
   </svg>
 );
 
-/* AiDe brand mark: prompt glyph on a teal tile */
-export const BrandMark = ({ className = "w-6 h-6" }: IP) => (
+/* ---------- brand ---------- */
+
+export const BrandMark = ({ className = "w-8 h-8" }: IP) => (
   <svg viewBox="0 0 32 32" className={className} aria-hidden>
-    <rect width="32" height="32" rx="8" fill="url(#aidemg)" />
-    <path
-      d="M10 11l5 5-5 5M17.5 21.5H23"
-      stroke="#04231d"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      fill="none"
-    />
-    <defs>
-      <linearGradient id="aidemg" x1="4" y1="4" x2="28" y2="28">
-        <stop offset="0" stopColor="#45e6c9" />
-        <stop offset="1" stopColor="#17b8a0" />
-      </linearGradient>
-    </defs>
+    <rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="#10151C" stroke="#31E5AE" strokeOpacity="0.55" strokeWidth="1.5" />
+    <path d="M10 11l5.5 5L10 21" stroke="#31E5AE" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <rect x="17.5" y="19" width="7" height="2.6" rx="1.3" fill="#FFC24B" />
   </svg>
 );
+
+export const Wordmark = ({ className = "" }: IP) => (
+  <span className={`font-display font-bold tracking-tight text-text ${className}`}>
+    Ai<span className="text-brand">De</span>
+    <span className="wm-cursor">_</span>
+  </span>
+);
+
+/* ---------- ui ---------- */
 
 export const SendIcon = (p: IP) => (
   <S {...p}>
@@ -93,6 +91,13 @@ export const GearIcon = (p: IP) => (
 export const PaperclipIcon = (p: IP) => (
   <S {...p}>
     <path d="M20 11.5l-7.8 7.8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L10 17a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4" />
+  </S>
+);
+
+export const ChatIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M21 12a8 8 0 0 1-8 8H4l2.3-2.9A8 8 0 1 1 21 12z" />
+    <path d="M8.5 10.5h7M8.5 13.5h4.5" />
   </S>
 );
 
@@ -198,12 +203,5 @@ export const KeyIcon = (p: IP) => (
 export const OpenIcon = (p: IP) => (
   <S {...p}>
     <path d="M14 4h6v6M20 4l-9 9M9 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
-  </S>
-);
-
-export const ChatIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M21 12a8 8 0 0 1-8 8H4l2.3-2.9A8 8 0 1 1 21 12z" />
-    <path d="M8.5 10.5h7M8.5 13.5h4.5" />
   </S>
 );

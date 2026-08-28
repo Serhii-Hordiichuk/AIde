@@ -7,7 +7,7 @@ import { Markdown } from "../lib/markdown";
 import { uid, DEFAULT_PARAMS, type ChatMessage, type Conversation, type ProviderCfg } from "../lib/store";
 import ModelPicker from "./ModelPicker";
 import {
-  BrandMark, SendIcon, StopIcon, PaperclipIcon, CopyIcon, CheckIcon,
+  Wordmark, SendIcon, StopIcon, PaperclipIcon, CopyIcon, CheckIcon,
   BrainIcon, GlobeIcon, SearchIcon, CodeIcon, BulbIcon, PenIcon, ChartIcon,
 } from "./Icons";
 
@@ -52,6 +52,7 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
 
   const model = modelById.get(modelId) ?? MODELS[0];
   const provider = providerById.get(model.providerId)!;
+  const live = !!cfgs[model.providerId]?.key?.trim();
 
   function autosize() {
     const ta = taRef.current;
@@ -83,7 +84,6 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
     stopRef.current = false;
 
     const cfg = cfgs[model.providerId];
-    const live = !!cfg?.key?.trim();
     let full = "";
     let isDemo = !live;
 
@@ -166,32 +166,46 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
       {/* message feed */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {empty ? (
-          <div className="flex h-full flex-col items-center justify-center px-6 pb-24">
-            <div className="floaty mb-5">
-              <BrandMark className="h-16 w-16 drop-shadow-[0_0_28px_#35e0c266]" />
-            </div>
-            <h1 className="font-display text-[clamp(24px,3vw,34px)] font-bold tracking-tight">
-              Hi, I'm <span className="text-aqua2">AiDe</span>
-            </h1>
-            <p className="mt-2 text-[14px] text-dim">
-              What can I help you build today? Running on {provider.name}.
-            </p>
-            <div className="mt-8 grid w-full max-w-[560px] grid-cols-2 gap-2.5 max-sm:grid-cols-1">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s.title}
-                  onClick={() => send(s.text)}
-                  className="row-hl group flex items-center gap-3 rounded-xl border border-line bg-panel/70 px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-aqua/45"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-aqua/12 text-aqua2 transition-transform group-hover:scale-110">
-                    <s.icon className="h-4 w-4" />
-                  </span>
-                  <span>
-                    <span className="block text-[13px] font-bold">{s.title}</span>
+          <div className="flex h-full flex-col justify-center overflow-y-auto">
+            <div className="mx-auto w-full max-w-[760px] px-6 py-12">
+              <p className="overline flex items-center gap-2">
+                <span className={`h-1.5 w-1.5 rounded-full ${live ? "pulse-live bg-mint" : "bg-gold"}`} />
+                session · {provider.name} · {model.name} · {live ? "live" : "demo"}
+              </p>
+              <div className="mt-5">
+                <Wordmark className="text-[clamp(34px,4.6vw,58px)] leading-none" />
+              </div>
+              <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-dim">
+                Ask anything — code, concepts, writing. Or flip to <b className="text-gold">Coder</b> and
+                ship a whole app from a single sentence.
+              </p>
+
+              <div className="my-7 h-px bg-gradient-to-r from-brand/50 via-line2 to-transparent" />
+
+              <p className="overline mb-3">start with one of these</p>
+              <div className="grid grid-cols-2 gap-2.5 max-sm:grid-cols-1">
+                {SUGGESTIONS.map((s, i) => (
+                  <button
+                    key={s.title}
+                    onClick={() => send(s.text)}
+                    style={{ animationDelay: `${i * 70}ms` }}
+                    className="anim-rise group rounded-xl border border-line bg-panel/70 px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-brand/45 hover:bg-panel2"
+                  >
+                    <span className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] tracking-wider text-faint transition-colors group-hover:text-brand">
+                        0{i + 1}
+                      </span>
+                      <s.icon className="h-4 w-4 text-brand transition-transform group-hover:scale-110" />
+                    </span>
+                    <span className="mt-2 block text-[13.5px] font-bold">{s.title}</span>
                     <span className="block truncate text-[12px] text-faint">{s.text}</span>
-                  </span>
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
+
+              <p className="mt-7 font-mono text-[10.5px] text-faint">
+                enter to send · shift+enter for a new line · answers stream token by token
+              </p>
             </div>
           </div>
         ) : (
@@ -254,11 +268,6 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
             </div>
           </div>
         </div>
-        <p className="mt-2 text-center font-mono text-[10.5px] text-faint">
-          {cfgs[model.providerId]?.key?.trim()
-            ? `live · ${provider.name} · ${model.apiId}`
-            : "demo mode — add an API key in Settings to answer with the real model"}
-        </p>
       </div>
     </div>
   );
@@ -269,7 +278,7 @@ function Toggle({ on, set, icon, label }: { on: boolean; set: (v: boolean) => vo
     <button
       onClick={() => set(!on)}
       className={`hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition-all md:flex ${
-        on ? "border-aqua/55 bg-aqua/12 text-aqua2" : "border-line text-dim hover:border-line2 hover:text-text"
+        on ? "border-brand/55 bg-brand/12 text-brand" : "border-line text-dim hover:border-line2 hover:text-text"
       }`}
       title={label}
     >
@@ -299,13 +308,15 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
   return (
     <div className="anim-rise group mb-7 flex gap-3">
       <div className="mt-0.5 shrink-0">
-        <BrandMark className="h-6 w-6" />
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-brand/30 bg-brand/8">
+          <span className="font-mono text-[11px] font-bold text-brand">&gt;_</span>
+        </span>
       </div>
       <div className="min-w-0 flex-1">
         {think && (
           <button
             onClick={() => setShowThink((v) => !v)}
-            className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5 font-mono text-[11px] text-aqua2 transition-colors hover:border-aqua/40"
+            className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5 font-mono text-[11px] text-brand transition-colors hover:border-brand/40"
           >
             <BrainIcon className="h-3.5 w-3.5" />
             {showThink ? "hide reasoning" : "model reasoning"}
@@ -319,7 +330,7 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
         )}
         <Markdown src={m.content || ""} />
         {streaming && !m.content && (
-          <span className="mt-1 flex items-center gap-1.5 text-aqua">
+          <span className="mt-1 flex items-center gap-1.5 text-brand">
             <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
             <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
             <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
@@ -330,7 +341,7 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
         {!streaming && m.content && (
           <div className="mt-2.5 flex items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
             {m.demo && (
-              <span className="rounded border border-solar/40 bg-solar/10 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-solar">
+              <span className="rounded border border-gold/40 bg-gold/10 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-gold">
                 demo
               </span>
             )}
@@ -343,7 +354,7 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1300);
               }}
-              className="flex items-center gap-1 font-mono text-[10.5px] text-dim transition-colors hover:text-aqua2"
+              className="flex items-center gap-1 font-mono text-[10.5px] text-dim transition-colors hover:text-brand"
             >
               {copied ? <CheckIcon className="h-3 w-3 text-mint" /> : <CopyIcon className="h-3 w-3" />}
               {copied ? "copied" : "copy"}

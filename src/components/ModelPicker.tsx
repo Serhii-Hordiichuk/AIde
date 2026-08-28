@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
-import { MODELS, fmtCtx, modelById, type ModelInfo } from "../data/models";
-import { PROVIDERS, providerById, KIND_LABEL } from "../data/providers";
+import { useEffect, useRef, useState } from "react";
+import { MODELS, modelById, fmtCtx, fmtPrice } from "../data/models";
+import { PROVIDERS, providerById } from "../data/providers";
+import { ChevronDown, CheckIcon } from "./Icons";
 import type { ProviderCfg } from "../lib/store";
-import { CheckIcon, ChevronDown, SearchIcon } from "./Icons";
 
 interface Props {
   modelId: string;
@@ -12,129 +12,94 @@ interface Props {
 
 export default function ModelPicker({ modelId, onChange, cfgs }: Props) {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const [group, setGroup] = useState<string>("all");
+  const ref = useRef<HTMLDivElement>(null);
+  const model = modelById.get(modelId) ?? MODELS[0];
+  const provider = providerById.get(model.providerId)!;
 
-  const current = modelById.get(modelId) ?? MODELS[0];
-  const provider = providerById.get(current.providerId)!;
-
-  const groups = useMemo(() => {
-    const ql = q.trim().toLowerCase();
-    const list = MODELS.filter(
-      (m) =>
-        (group === "all" || m.providerId === group) &&
-        (!ql ||
-          m.name.toLowerCase().includes(ql) ||
-          m.apiId.toLowerCase().includes(ql) ||
-          m.tags.some((t) => t.toLowerCase().includes(ql)))
-    );
-    const map = new Map<string, ModelInfo[]>();
-    for (const m of list) {
-      if (!map.has(m.providerId)) map.set(m.providerId, []);
-      map.get(m.providerId)!.push(m);
-    }
-    return PROVIDERS.filter((p) => map.has(p.id)).map((p) => ({ p, models: map.get(p.id)! }));
-  }, [q, group]);
-
-  function pick(id: string) {
-    onChange(id);
-    setOpen(false);
-    setQ("");
-  }
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("mousedown", h);
+    return () => window.removeEventListener("mousedown", h);
+  }, [open]);
 
   return (
-    <div className="relative">
+    <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-semibold transition-all ${
-          open ? "border-aqua/55 bg-aqua/10 text-aqua2" : "border-line text-dim hover:border-line2 hover:text-text"
-        }`}
+        className="flex max-w-[240px] items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-[12.5px] font-semibold transition-all hover:border-line2 hover:bg-panel3"
+        title="Change model"
       >
-        <span className="h-2 w-2 rounded-full" style={{ background: provider.accent }} />
-        <span className="max-w-[150px] truncate">{current.name}</span>
-        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: provider.accent }} />
+        <span className="truncate">{model.name}</span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-faint transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full left-0 z-50 mb-2 w-[340px] overflow-hidden rounded-xl border border-line2 bg-panel shadow-2xl shadow-black/60">
-            <div className="border-b border-line p-2.5">
-              <div className="flex items-center gap-2 rounded-lg border border-line bg-panel2 px-2.5 py-1.5">
-                <SearchIcon className="h-3.5 w-3.5 text-faint" />
-                <input
-                  autoFocus
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search models or providers…"
-                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
-                />
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {["all", ...PROVIDERS.filter((p) => MODELS.some((m) => m.providerId === p.id)).map((p) => p.id)].map((id) => (
-                  <button
-                    key={id}
-                    onClick={() => setGroup(id)}
-                    className={`rounded-md px-2 py-0.5 font-mono text-[10.5px] transition-all ${
-                      group === id ? "bg-aqua/15 text-aqua2" : "text-faint hover:bg-panel2 hover:text-dim"
-                    }`}
-                  >
-                    {id === "all" ? "all" : providerById.get(id)!.name.split(" ")[0].toLowerCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="max-h-[320px] overflow-y-auto p-1.5">
-              {groups.length === 0 && (
-                <p className="px-3 py-6 text-center text-[12.5px] text-faint">Nothing found — try a different query</p>
-              )}
-              {groups.map(({ p, models }) => (
-                <div key={p.id} className="mb-1">
-                  <p className="flex items-center gap-2 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-faint">
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: p.accent }} />
-                    {p.name}
-                    <span className="normal-case tracking-normal">· {KIND_LABEL[p.kind]}</span>
-                  </p>
-                  {models.map((m) => (
+        <div className="anim-rise absolute bottom-full left-0 z-50 mb-2 w-[400px] max-w-[90vw] overflow-hidden rounded-xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.75)]">
+          <div className="border-b border-line px-4 py-2.5">
+            <p className="overline">model · routed via provider</p>
+          </div>
+          <div className="max-h-[360px] overflow-y-auto py-1.5">
+            {PROVIDERS.filter((p) => MODELS.some((m) => m.providerId === p.id)).map((p) => (
+              <div key={p.id}>
+                <p className="flex items-center gap-2 px-4 pb-1 pt-2.5 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
+                  <span className="h-1 w-1 rounded-full" style={{ background: p.accent }} />
+                  {p.name}
+                  {cfgs[p.id]?.key?.trim() ? (
+                    <span className="text-mint">· key set</span>
+                  ) : p.local ? (
+                    <span className="text-cyanic">· local</span>
+                  ) : (
+                    <span>· no key</span>
+                  )}
+                </p>
+                {MODELS.filter((m) => m.providerId === p.id).map((m) => {
+                  const active = m.id === modelId;
+                  return (
                     <button
                       key={m.id}
-                      onClick={() => pick(m.id)}
-                      className="row-hl flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
+                      onClick={() => {
+                        onChange(m.id);
+                        setOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-3 px-4 py-2 text-left transition-colors ${
+                        active ? "bg-brand/10" : "hover:bg-panel2"
+                      }`}
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-2 text-[13px] font-semibold text-text">
-                          <span className="truncate">{m.name}</span>
-                          {m.reasoning && <Badge tone="aqua">think</Badge>}
-                          {m.vision && <Badge tone="cyan">vision</Badge>}
-                          {m.open && <Badge tone="mint">open</Badge>}
-                        </p>
-                        <p className="truncate font-mono text-[10.5px] text-faint">
-                          {fmtCtx(m.ctx)} ctx · {m.priceIn === null ? "free tier" : m.priceIn === 0 ? "free tier" : `$${m.priceIn}/$${m.priceOut} per 1M`}
-                          {!p.local && !cfgs[p.id]?.key?.trim() && <span className="text-solar"> · no key</span>}
-                        </p>
-                      </div>
-                      {m.id === modelId && <CheckIcon className="h-4 w-4 shrink-0 text-aqua" />}
+                      <span className="min-w-0 flex-1">
+                        <span className={`block truncate text-[13px] ${active ? "font-bold text-brand" : "font-semibold text-text"}`}>
+                          {m.name}
+                        </span>
+                        <span className="block truncate font-mono text-[10.5px] text-faint">{m.apiId}</span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="block font-mono text-[10.5px] text-dim">{fmtCtx(m.ctx)} ctx</span>
+                        <span className="block font-mono text-[10.5px] text-faint">{fmtPrice(m)}</span>
+                      </span>
+                      {m.reasoning && (
+                        <span className="shrink-0 rounded border border-gold/40 px-1 py-px font-mono text-[9px] uppercase text-gold" title="Reasoning model">
+                          R
+                        </span>
+                      )}
+                      {m.vision && (
+                        <span className="shrink-0 rounded border border-cyanic/40 px-1 py-px font-mono text-[9px] uppercase text-cyanic" title="Vision">
+                          V
+                        </span>
+                      )}
+                      <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center ${active ? "text-brand" : "opacity-0"}`}>
+                        <CheckIcon className="h-3.5 w-3.5" />
+                      </span>
                     </button>
-                  ))}
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
-        </>
+        </div>
       )}
     </div>
-  );
-}
-
-function Badge({ tone, children }: { tone: "aqua" | "mint" | "cyan"; children: React.ReactNode }) {
-  const map = {
-    aqua: "border-aqua/40 text-aqua2",
-    mint: "border-mint/40 text-mint",
-    cyan: "border-cyanic/40 text-cyanic",
-  };
-  return (
-    <span className={`rounded border px-1 py-px font-mono text-[9px] uppercase tracking-wide ${map[tone]}`}>
-      {children}
-    </span>
   );
 }
