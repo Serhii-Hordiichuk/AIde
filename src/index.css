@@ -1,238 +1,289 @@
 @import "tailwindcss";
 
-/* ===== QStudio — дизайн-система у стилі Qwen Chat (світла за замовчуванням) ===== */
-
-:root {
-  --page: #f5f6f8;
-  --sidebar: #eceef2;
-  --panel: #ffffff;
-  --panel-2: #f2f3f6;
-  --line: #e3e5eb;
-  --line-2: #d4d7df;
-  --ink: #191a1f;
-  --ink-2: #565b66;
-  --ink-3: #8d929d;
-  --acc: #615ced;
-  --acc-strong: #4f49d8;
-  --acc-soft: #edeafb;
-  --acc-ink: #5a54e0;
-  --ok: #15803d;
-  --warn: #b45309;
-  --err: #dc2626;
-  --shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 4px 16px rgb(16 24 40 / 0.06);
-  --shadow-lg: 0 8px 32px rgb(16 24 40 / 0.12);
-  color-scheme: light;
-}
-
-[data-theme="dark"] {
-  --page: #141519;
-  --sidebar: #0f1013;
-  --panel: #1c1e24;
-  --panel-2: #24262e;
-  --line: #2a2d36;
-  --line-2: #3a3e4a;
-  --ink: #e9eaee;
-  --ink-2: #a6abb7;
-  --ink-3: #6d7381;
-  --acc: #7b74f0;
-  --acc-strong: #8f89f5;
-  --acc-soft: #262443;
-  --acc-ink: #a49ff5;
-  --ok: #4ade80;
-  --warn: #fbbf24;
-  --err: #f87171;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.35);
-  --shadow-lg: 0 8px 32px rgb(0 0 0 / 0.5);
-  color-scheme: dark;
-}
-
 @theme {
-  --font-body: "Onest", "Segoe UI", sans-serif;
-  --font-display: "Unbounded", "Onest", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  --color-bg: #101015;
+  --color-panel: #17171e;
+  --color-panel2: #1d1d26;
+  --color-panel3: #23232e;
+  --color-line: #ffffff12;
+  --color-line2: #ffffff1f;
+  --color-violet: #615ced;
+  --color-violet2: #8b7cff;
+  --color-ink: #0b0b0f;
+  --color-text: #f4f4f8;
+  --color-dim: #a3a3b6;
+  --color-faint: #6f6f83;
+  --color-mint: #3ecf8e;
+  --color-solar: #ffc24b;
+  --color-coral: #ff6b6b;
+  --color-cyanic: #58c4dd;
+
+  --font-sans: "Manrope", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Unbounded", "Manrope", sans-serif;
 }
 
-html, body, #root { height: 100%; }
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
-  font-family: var(--font-body);
-  background: var(--page);
-  color: var(--ink);
-  font-size: 15px;
-  -webkit-font-smoothing: antialiased;
-  transition: background-color 0.25s ease, color 0.25s ease;
+  @apply bg-bg font-sans text-[14px] text-text antialiased;
+  background:
+    radial-gradient(1100px 520px at 78% -12%, #615ced1f, transparent 62%),
+    radial-gradient(900px 480px at 8% -18%, #58c4dd12, transparent 60%),
+    #101015;
 }
 
-::selection { background: color-mix(in srgb, var(--acc) 26%, transparent); }
+::selection {
+  background: #615ced59;
+}
 
-* { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
+/* тонкі скролбари */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff1c transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #ffffff1c;
+  border-radius: 9px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #ffffff2e;
+  background-clip: content-box;
+}
 
-input, textarea, select, button { font-family: inherit; }
-
+/* поля */
 .field {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  color: var(--ink);
-  padding: 9px 12px;
-  font-size: 13.5px;
-  outline: none;
-  width: 100%;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  @apply rounded-lg border border-line bg-panel2 px-3 py-2 text-[13.5px] text-text outline-none transition-all placeholder:text-faint focus:border-violet/60 focus:ring-2 focus:ring-violet/15;
 }
-.field::placeholder { color: var(--ink-3); }
-.field:focus { border-color: var(--acc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 15%, transparent); }
-
-/* ===== кнопки / чипи ===== */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  border-radius: 10px; border: 1px solid var(--line); background: var(--panel);
-  color: var(--ink-2); font-size: 13px; font-weight: 600; padding: 8px 14px;
-  cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
-}
-.btn:hover { border-color: var(--line-2); color: var(--ink); background: var(--panel-2); }
-.btn-acc {
-  background: var(--acc); border-color: var(--acc); color: #fff;
-}
-.btn-acc:hover { background: var(--acc-strong); border-color: var(--acc-strong); color: #fff; }
-.btn-acc:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-ghost { border-color: transparent; background: transparent; }
-.btn-ghost:hover { background: var(--panel-2); border-color: transparent; }
-.btn-danger:hover { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, transparent); background: color-mix(in srgb, var(--err) 7%, transparent); }
-
-.chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  border-radius: 999px; border: 1px solid var(--line); background: transparent;
-  color: var(--ink-2); font-size: 12.5px; font-weight: 500; padding: 5.5px 12px;
-  cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
-}
-.chip:hover { border-color: var(--line-2); color: var(--ink); background: var(--panel); }
-.chip.on {
-  background: var(--acc-soft); border-color: color-mix(in srgb, var(--acc) 45%, transparent);
-  color: var(--acc-ink); font-weight: 600;
+.field-mono {
+  @apply font-mono;
 }
 
-.tag {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.02em;
-  padding: 2.5px 8px; border-radius: 6px; border: 1px solid var(--line);
-  color: var(--ink-2); background: var(--panel-2); white-space: nowrap;
+/* квадратна іконкова кнопка */
+.icon-btn {
+  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-dim transition-all hover:border-line hover:bg-panel2 hover:text-text;
 }
 
-/* ===== анімації ===== */
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-@keyframes pop { from { opacity: 0; transform: scale(0.97) translateY(4px); } to { opacity: 1; transform: none; } }
-@keyframes toast-in { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
-@keyframes floaty { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-6px) rotate(3deg); } }
-@keyframes spin-slow { to { transform: rotate(360deg); } }
-@keyframes blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
-@keyframes pulse-dot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.55; } }
-@keyframes dotjump { 0%, 60%, 100% { transform: none; opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
-
-.anim-rise { animation: rise 0.32s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
-.anim-pop { animation: pop 0.22s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
-.star-float { animation: floaty 5.5s ease-in-out infinite; transform-origin: center; }
-.spin-slow { animation: spin-slow 14s linear infinite; }
-.cursor-blink { animation: blink 1s step-end infinite; }
-.pulse-dot { animation: pulse-dot 1.8s ease-in-out infinite; }
-
-.typing-dot { width: 5px; height: 5px; border-radius: 99px; background: var(--ink-3); animation: dotjump 1.1s infinite; }
-.typing-dot:nth-child(2) { animation-delay: 0.15s; }
-.typing-dot:nth-child(3) { animation-delay: 0.3s; }
-
-/* ===== markdown ===== */
-.md { line-height: 1.72; font-size: 14.5px; color: var(--ink); overflow-wrap: break-word; }
-.md > * + * { margin-top: 0.7em; }
-.md h1 { font-size: 1.3em; font-weight: 800; margin-top: 1.1em; }
-.md h2 { font-size: 1.14em; font-weight: 700; margin-top: 1em; }
-.md h3 { font-size: 1.03em; font-weight: 700; margin-top: 0.9em; }
-.md p { margin: 0; }
-.md ul, .md ol { padding-left: 1.35em; margin: 0.3em 0; display: grid; gap: 0.3em; }
-.md ul { list-style: disc; }
-.md ol { list-style: decimal; }
-.md li::marker { color: var(--acc); }
-.md strong { font-weight: 700; color: var(--ink); }
-.md em { font-style: italic; }
-.md a { color: var(--acc-ink); text-decoration: underline; text-underline-offset: 2px; }
+/* маркдаун */
+.md {
+  @apply text-[14px] leading-[1.7] text-text/90;
+}
+.md > * + * {
+  margin-top: 0.7em;
+}
+.md h1,
+.md h2,
+.md h3 {
+  @apply font-sans font-bold text-text;
+  margin-top: 1.15em;
+}
+.md h1 {
+  font-size: 1.28rem;
+}
+.md h2 {
+  font-size: 1.14rem;
+}
+.md h3 {
+  font-size: 1.02rem;
+}
+.md p {
+  margin: 0.5em 0;
+}
+.md a {
+  @apply text-violet2 underline decoration-violet2/40 underline-offset-2;
+}
+.md a:hover {
+  text-decoration-color: currentColor;
+}
+.md ul,
+.md ol {
+  padding-left: 1.3em;
+  margin: 0.55em 0;
+  display: grid;
+  gap: 0.3em;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md li::marker {
+  color: #8b7cff;
+}
+.md code {
+  @apply rounded bg-panel3 px-1.5 py-0.5 font-mono text-[0.86em] text-violet2;
+}
 .md blockquote {
-  border-left: 3px solid var(--acc); background: var(--panel-2);
-  padding: 8px 14px; border-radius: 0 8px 8px 0; color: var(--ink-2);
+  @apply border-l-2 border-violet/60 bg-violet/6 py-1 pl-3.5 pr-2 text-dim;
+  border-radius: 0 8px 8px 0;
 }
-.md hr { border: none; border-top: 1px solid var(--line); margin: 1em 0; }
-.md table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin: 0.4em 0; }
-.md th, .md td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
-.md th { background: var(--panel-2); font-weight: 700; }
-.md :not(pre) > code {
-  font-family: var(--font-mono); font-size: 0.86em;
-  background: var(--panel-2); border: 1px solid var(--line);
-  padding: 1.5px 5px; border-radius: 5px; color: var(--acc-ink);
+.md hr {
+  border: 0;
+  border-top: 1px solid #ffffff14;
+  margin: 1em 0;
 }
 .md pre {
-  background: #101216; color: #d7dae0; border-radius: 10px;
-  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65;
-  overflow: hidden; margin: 0.5em 0; border: 1px solid rgb(255 255 255 / 0.06);
+  @apply my-3 overflow-hidden rounded-xl border border-line bg-ink;
 }
-.md pre > span { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: rgb(255 255 255 / 0.04); border-bottom: 1px solid rgb(255 255 255 / 0.07); }
-.md pre > span span:first-child { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: #8b93a1; }
-.md pre > span button { font-size: 11px; color: #8b93a1; background: none; border: none; cursor: pointer; transition: color 0.15s; }
-.md pre > span button:hover { color: #c4cad4; }
-.md pre code { display: block; padding: 12px 14px; overflow-x: auto; white-space: pre; }
-
-/* ===== термінал (Кодер) ===== */
-.term {
-  background: #0d0f13; color: #c8cdd6; font-family: var(--font-mono);
-  font-size: 12.5px; line-height: 1.7; border-radius: 12px;
-  border: 1px solid rgb(255 255 255 / 0.07);
-}
-.term-line { white-space: pre-wrap; word-break: break-word; animation: rise 0.25s ease both; }
-.term-caret { display: inline-block; width: 8px; height: 15px; background: #7b74f0; vertical-align: -2px; animation: blink 1s step-end infinite; }
-
-/* ===== інше ===== */
-.sidebar-item {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 8px 10px; border-radius: 9px; font-size: 13px; color: var(--ink-2);
-  cursor: pointer; transition: all 0.13s ease; border: 1px solid transparent; text-align: left;
-}
-.sidebar-item:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
-.sidebar-item.on { background: var(--panel); border-color: var(--line); color: var(--ink); box-shadow: var(--shadow); font-weight: 600; }
-
-.menu-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  box-shadow: var(--shadow-lg); animation: pop 0.16s ease both; overflow: hidden;
+.md pre code {
+  @apply block overflow-x-auto bg-transparent px-4 py-3.5 text-[12.5px] leading-relaxed text-[#cdd3ea];
 }
 
-.toast-card {
-  background: var(--ink); color: var(--page); border-radius: 11px;
-  box-shadow: var(--shadow-lg); animation: toast-in 0.25s cubic-bezier(0.2, 0.7, 0.3, 1) both;
-  font-size: 13px; padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+/* каретка термінала / стрімінгу */
+.caret {
+  @apply inline-block h-[15px] w-[7px] translate-y-[2px] bg-violet2;
+  animation: caretBlink 0.85s steps(2) infinite;
 }
-[data-theme="dark"] .toast-card { background: #f4f5f7; color: #16171b; }
+@keyframes caretBlink {
+  50% {
+    opacity: 0;
+  }
+}
 
-.think-block {
-  border: 1px dashed var(--line-2); border-radius: 10px; background: var(--panel-2);
-  color: var(--ink-2); font-size: 13px; margin-bottom: 10px; overflow: hidden;
+/* пульс "live" */
+.pulse-live {
+  position: relative;
 }
-.think-block > button {
-  width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-  background: none; border: none; cursor: pointer; color: var(--ink-3); font-size: 12px;
-  font-family: var(--font-mono); text-align: left;
+.pulse-live::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 1.5px solid #3ecf8e88;
+  animation: ringPulse 1.8s ease-out infinite;
 }
-.think-block > button:hover { color: var(--ink-2); }
-.think-block > div { padding: 0 12px 10px; line-height: 1.65; white-space: pre-wrap; }
+@keyframes ringPulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
 
-.file-row {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 6px 10px; border-radius: 8px; font-family: var(--font-mono);
-  font-size: 12px; color: var(--ink-2); cursor: pointer; transition: all 0.13s ease;
-  border: 1px solid transparent; text-align: left;
+/* поява повідомлень */
+.anim-rise {
+  animation: rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.file-row:hover { background: var(--panel-2); color: var(--ink); }
-.file-row.on { background: var(--acc-soft); color: var(--acc-ink); border-color: color-mix(in srgb, var(--acc) 30%, transparent); font-weight: 600; }
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
-.kbd {
-  font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3);
-  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
-  padding: 1px 5px; background: var(--panel);
+/* повільне обертання зірки Qwen */
+.star-spin {
+  animation: starSpin 22s linear infinite;
+}
+@keyframes starSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* крапки "думає" */
+.thinking-dot {
+  animation: thinkBounce 1.1s ease-in-out infinite;
+}
+.thinking-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.thinking-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes thinkBounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* рядки термінала */
+.term-line {
+  animation: termIn 0.22s ease-out both;
+}
+@keyframes termIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* сканлайни у терміналі */
+.term-scan::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 2px, #ffffff04 2px 4px);
+}
+
+/* кроки плану кодера */
+.step-in {
+  animation: stepIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes stepIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* м'яке світло композера при фокусі */
+.composer-glow:focus-within {
+  box-shadow: 0 0 0 1px #615ced66, 0 8px 40px -8px #615ced40;
+}
+
+/* hover-підсвітка елементів списків */
+.row-hl {
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.row-hl:hover {
+  background: #ffffff08;
+}
+
+/* брендовий градієнт Qwen (кнопки) */
+.btn-brand {
+  background: linear-gradient(135deg, #615ced, #8b7cff);
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+.btn-brand:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 6px 24px -6px #615ced88;
+}
+.btn-brand:active {
+  transform: scale(0.97);
 }

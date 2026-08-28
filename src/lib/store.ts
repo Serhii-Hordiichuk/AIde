@@ -2,26 +2,17 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  thinking?: string;
-  model?: string;
-  providerId?: string;
+  modelId?: string;
   demo?: boolean;
-  tokens?: { in: number; out: number };
-  cost?: number | null;
   ts: number;
+  tokens?: number;
 }
 
 export interface Conversation {
   id: string;
   title: string;
-  modelId: string;
   messages: ChatMessage[];
   createdAt: number;
-}
-
-export interface ProviderCfg {
-  key: string;
-  baseUrl: string;
 }
 
 export interface GenParams {
@@ -31,57 +22,54 @@ export interface GenParams {
   system: string;
 }
 
+export const DEFAULT_PARAMS: GenParams = {
+  temperature: 0.7,
+  topP: 0.95,
+  maxTokens: 4096,
+  system: "",
+};
+
 export interface ProjectFile {
   name: string;
   content: string;
 }
 
-export type ProjectStatus = "running" | "ready" | "failed";
-
 export interface Project {
   id: string;
   name: string;
-  desc: string;
+  prompt: string;
   templateId: string;
-  status: ProjectStatus;
   files: ProjectFile[];
-  source: "demo" | "llm";
   createdAt: number;
+  status: "building" | "ready";
 }
 
-export const DEFAULT_PARAMS: GenParams = {
-  temperature: 0.7,
-  topP: 0.95,
-  maxTokens: 8192,
-  system: "Ти — QStudio, helpful AI-асистент. Відповідай українською, стисло і по суті.",
-};
+export interface ProviderCfg {
+  key: string;
+  baseUrl: string;
+}
 
-export function load<T>(key: string, fallback: T): T {
+const NS = "qsf.";
+
+export function load<T>(k: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
+    const raw = localStorage.getItem(NS + k);
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
   }
 }
 
-export function save(key: string, value: unknown): void {
+export function save(k: string, v: unknown) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(NS + k, JSON.stringify(v));
   } catch {
-    /* переповнення сховища — ігноруємо */
+    /* ignore quota */
   }
 }
 
-export function uid(): string {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-}
+export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
-export function newConversation(modelId: string): Conversation {
-  return { id: uid(), title: "Новий чат", modelId, messages: [], createdAt: Date.now() };
-}
-
-export function toast(msg: string) {
-  window.dispatchEvent(new CustomEvent("qs-toast", { detail: msg }));
+export function newConversation(): Conversation {
+  return { id: uid(), title: "Новий чат", messages: [], createdAt: Date.now() };
 }
