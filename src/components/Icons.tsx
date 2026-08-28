@@ -17,17 +17,22 @@ const S = ({ className = "w-4 h-4", children }: IP & { children: React.ReactNode
   </svg>
 );
 
-/* Зірка Qwen */
-export const Star = ({ className = "w-6 h-6" }: IP) => (
+/* AiDe brand mark: prompt glyph on a teal tile */
+export const BrandMark = ({ className = "w-6 h-6" }: IP) => (
   <svg viewBox="0 0 32 32" className={className} aria-hidden>
+    <rect width="32" height="32" rx="8" fill="url(#aidemg)" />
     <path
-      d="M16 3.5l2.9 8.6 8.6 2.9-8.6 2.9L16 26.5l-2.9-8.6-8.6-2.9 8.6-2.9z"
-      fill="url(#qg)"
+      d="M10 11l5 5-5 5M17.5 21.5H23"
+      stroke="#04231d"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
     />
     <defs>
-      <linearGradient id="qg" x1="4" y1="4" x2="28" y2="28">
-        <stop offset="0" stopColor="#8b7cff" />
-        <stop offset="1" stopColor="#615ced" />
+      <linearGradient id="aidemg" x1="4" y1="4" x2="28" y2="28">
+        <stop offset="0" stopColor="#45e6c9" />
+        <stop offset="1" stopColor="#17b8a0" />
       </linearGradient>
     </defs>
   </svg>
@@ -193,5 +198,12 @@ export const KeyIcon = (p: IP) => (
 export const OpenIcon = (p: IP) => (
   <S {...p}>
     <path d="M14 4h6v6M20 4l-9 9M9 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
+  </S>
+);
+
+export const ChatIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M21 12a8 8 0 0 1-8 8H4l2.3-2.9A8 8 0 1 1 21 12z" />
+    <path d="M8.5 10.5h7M8.5 13.5h4.5" />
   </S>
 );

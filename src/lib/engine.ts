@@ -1,10 +1,10 @@
 import { streamChat, NoKeyError } from "./llm";
 import { modelById } from "../data/models";
-import { PROVIDERS, providerById } from "../data/providers";
+import { providerById } from "../data/providers";
 import type { ProviderCfg, ProjectFile } from "./store";
 import { pickTemplate, deriveName } from "./templates";
 
-/* ================= демо-відповіді чату ================= */
+/* ================= chat demo replies ================= */
 
 export interface DemoOut {
   thinking?: string;
@@ -19,11 +19,11 @@ export interface ReplyOpts {
 
 function thinkAbout(t: string): string {
   return [
-    `1. Розбираю запит: «${t.slice(0, 60)}${t.length > 60 ? "…" : ""}»`,
-    "2. Визначаю тип задачі: код / пояснення / порівняння / текст",
-    "3. Планую структуру відповіді: суть → деталі → приклад",
-    "4. Перевіряю факти та приклади коду на коректність",
-    "5. Формую фінальну відповідь українською",
+    `1. Parsing the request: "${t.slice(0, 60)}${t.length > 60 ? "…" : ""}"`,
+    "2. Classifying the task: code / explanation / comparison / writing",
+    "3. Planning the answer structure: essence → details → example",
+    "4. Sanity-checking facts and code samples",
+    "5. Composing the final reply in English",
   ].join("\n");
 }
 
@@ -31,15 +31,15 @@ export function demoReply(userText: string, modelName: string, providerName: str
   const t = userText.toLowerCase();
   let text = "";
 
-  if (/(привіт|вітаю|hello|хай|добрий)/.test(t)) {
-    text = `Привіт! Я **QStudio** — форк Qwen Studio, що працює через ${providerName} (модель \`${modelName}\`).
+  if (/(hello|hey|hi |greetings|good (morning|afternoon|evening))/.test(t + " ")) {
+    text = `Hey! I'm **AiDe** — an AI coding studio running through ${providerName} (model \`${modelName}\`).
 
-Можу допомогти з кодом, архітектурою, текстами й поясненнями. А на вкладці **Кодер** я створюю цілі проєкти з нуля — спробуй.
+I can help with code, architecture, writing and explanations. And in **Coder** mode I build entire projects from scratch — give it a try.
 
-- Напиши: *«зроби хук useDebounce з тестами»*
-- Або: *«порівняй Ollama і vLLM»*`;
-  } else if (/(usedebounce|хук|debounce)/.test(t)) {
-    text = `Ось \`useDebounce\` із тестом на Vitest:
+- Try: *"write a useDebounce hook with tests"*
+- Or: *"compare Ollama and vLLM"*`;
+  } else if (/(usedebounce|hook|debounce)/.test(t)) {
+    text = `Here's a \`useDebounce\` with a Vitest test:
 
 \`\`\`tsx
 import { useEffect, useState } from "react";
@@ -59,61 +59,61 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { useDebounce } from "./useDebounce";
 
-it("оновлюється після затримки", () => {
+it("updates after the delay", () => {
   vi.useFakeTimers();
   const { result, rerender } = renderHook(({ v }) => useDebounce(v, 300), {
-    initialProps: { v: "а" },
+    initialProps: { v: "a" },
   });
-  rerender({ v: "б" });
-  expect(result.current).toBe("а");
+  rerender({ v: "b" });
+  expect(result.current).toBe("a");
   act(() => void vi.advanceTimersByTime(300));
-  expect(result.current).toBe("б");
+  expect(result.current).toBe("b");
 });
 \`\`\`
 
-Ключове: \`clearTimeout\` у cleanup скасовує попередні таймери під час швидкого набору.`;
-  } else if (/(ollama|vllm|llama\.cpp|локальн)/.test(t)) {
-    text = `## Ollama проти vLLM
+The key detail: \`clearTimeout\` in the cleanup cancels pending timers while the user keeps typing.`;
+  } else if (/(ollama|vllm|llama\.cpp|local)/.test(t)) {
+    text = `## Ollama vs vLLM
 
-| Критерій | Ollama | vLLM |
+| Criterion | Ollama | vLLM |
 |---|---|---|
-| Сценарій | розробка, десктоп | продакшн, навантаження |
-| Запуск | \`ollama run qwen2.5-coder:7b\` | \`vllm serve Qwen/Qwen3-8B\` |
-| Швидкість | добра (llama.cpp) | відмінна (PagedAttention + batching) |
-| Квантизація | GGUF, CPU+GPU | AWQ / GPTQ / FP8, GPU |
+| Use case | development, desktop | production, high load |
+| Launch | \`ollama run deepseek-coder-v2:16b\` | \`vllm serve deepseek-ai/DeepSeek-V3\` |
+| Speed | good (llama.cpp inside) | excellent (PagedAttention + batching) |
+| Quantization | GGUF, CPU+GPU | AWQ / GPTQ / FP8, GPU-first |
 
-**Висновок:** для себе — Ollama (нуль конфігурації). Для сервісу з >5 RPS — vLLM: continuous batching дає 3–10× пропускної здатності.
+**Verdict:** for personal dev — Ollama (zero config). For a service with >5 RPS — vLLM: continuous batching gives 3–10× throughput.
 
-> Обидва вже є у списку провайдерів QStudio — підключай у Налаштуваннях.`;
-  } else if (/(rag|ембедінг|вектор)/.test(t)) {
-    text = `## RAG простими словами
+> Both are already in the AiDe provider list — connect them in Settings.`;
+  } else if (/(rag|embedding|vector)/.test(t)) {
+    text = `## RAG in plain words
 
-Уяви бібліотеку, де бібліотекар не читає всі книги, а миттєво знаходить потрібні сторінки:
+Imagine a library where the librarian **doesn't read every book** — they instantly pull the right pages:
 
-1. **Індексація** — документи ріжуться на чанки (300–800 токенів) і стають векторами
-2. **Пошук** — питання теж векторизується; косинусна подібність дає топ-K чанків
-3. **Збірка** — фрагменти вставляються в промпт як контекст
-4. **Генерація** — модель відповідає з контексту, а не з пам'яті
+1. **Indexing** — documents are split into chunks (300–800 tokens) and turned into embedding vectors
+2. **Retrieval** — the question is vectorized too; cosine similarity returns the top-K chunks
+3. **Assembly** — the retrieved fragments go into the prompt as context
+4. **Generation** — the model answers from context, not from memory
 
 \`\`\`python
 chunks = retrieve(question, top_k=6)
-prompt = f"Відповідай лише з контексту:\\n{chunks}\\n\\nПитання: {question}"
+prompt = f"Answer using only the context:\\n{chunks}\\n\\nQuestion: {question}"
 answer = llm.complete(prompt)
 \`\`\`
 
-Типові помилки: завеликі чанки, відсутність reranker'а, відповіді без цитування джерел.`;
-  } else if (/(вірш|поезі)/.test(t)) {
-    text = `> Блимає курсор, як маяк у тумані,
-> компілить думки на холоднім ядрі.
-> Ми — демони, що сни про бінарні
-> шукають у чорній своїй глибині.
+Typical mistakes: chunks that are too large, no reranker, and answers without citing sources.`;
+  } else if (/(poem|poetry|verse)/.test(t)) {
+    text = `> The cursor blinks — a lighthouse in the fog,
+> compiling thoughts on cold and quiet cores.
+> We are the daemons, hunting binary dreams
+> across the black cathedral of our floors.
 >
-> І падає сніг із нечитаних логів,
-> і grep знаходить сенс у порожнечі —
-> поки мій код і твій код, наче боги,
-> тримають цей світ на гарячім плечі.`;
-  } else if (/(код|функці|react|python|typescript|api|напиши)/.test(t)) {
-    text = `Компактна реалізація з обробкою помилок:
+> And snow falls down from logs no one will read,
+> and grep finds meaning in the emptiness —
+> while your code and mine, like gods agreed,
+> hold up this world on one warm process.`;
+  } else if (/(code|function|react|python|typescript|api|write me|implement)/.test(t)) {
+    text = `A compact implementation with proper error handling:
 
 \`\`\`ts
 async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
@@ -132,68 +132,68 @@ const withTimeout = <T,>(p: Promise<T>, ms = 5000) =>
   ]);
 \`\`\`
 
-Що важливо:
+What matters here:
 
-1. **Дженерик \`T\`** — тип відповіді перевіряється компілятором
-2. **\`res.ok\`** — fetch не кидає помилку на 4xx/5xx
-3. **Race з таймаутом** — захист від завислих з'єднань
+1. **Generic \`T\`** — the response type is checked at compile time
+2. **\`res.ok\`** — fetch doesn't throw on 4xx/5xx
+3. **Race with timeout** — protection against hung connections
 
-Додати retry з експоненційною затримкою?`;
+Want me to add a retry with exponential backoff?`;
   } else {
-    text = `Розберімо **"${userText.slice(0, 70)}${userText.length > 70 ? "…" : ""}"** по кроках.
+    text = `Let's break down **"${userText.slice(0, 70)}${userText.length > 70 ? "…" : ""}"** step by step.
 
-### Підхід
-Модель \`${modelName}\` через ${providerName} (контекст чату враховує попередні повідомлення). Для таких запитів я:
+### Approach
+Model \`${modelName}\` via ${providerName} (the chat context includes previous messages). For requests like this I:
 
-1. Формулюю критерій успіху
-2. Декомпозую задачу на 3–5 кроків
-3. Виконую з проміжною перевіркою
-4. Зводжу результат із тим, що варто перевірити вручну
+1. Define the success criterion
+2. Decompose the task into 3–5 verifiable steps
+3. Execute with intermediate checks
+4. Summarize, noting what's worth verifying manually
 
-### Що уточнити
-- Який формат результату потрібен: код, текст, план?
-- Є обмеження: стек, обсяг, стиль?
+### Worth clarifying
+- What format do you need: code, prose, a plan?
+- Any constraints: stack, scope, style?
 
-> Це демо-відповідь: ключ ${providerName} не підключено. Додай його в **Налаштуваннях** (⚙) — і запит піде в справжню \`${modelName}\`.`;
+> This is a demo reply: no ${providerName} key is connected. Add one in **Settings** (⚙) — and the request will go to the real \`${modelName}\`.`;
   }
 
   if (opts.deep) {
-    text = `# Дослідження: ${userText.slice(0, 60)}
+    text = `# Research: ${userText.slice(0, 60)}
 
-## Ключові висновки
-- **Стан речей** — тема активно розвивається; основні підходи сформовані, але інструменти швидко змінюються
-- **Практика** — найкращі результати дає поєднання простих рішень із поступовим ускладненням
-- **Ризики** — головна пастка: передчасна оптимізація без вимірювань
+## Key takeaways
+- **State of play** — the field is evolving fast; core approaches are settled, but tooling churns quickly
+- **Practice** — the best results come from combining simple solutions with gradual refinement
+- **Risks** — the main trap: premature optimization without measurement
 
-## Детальний розбір
+## Detailed breakdown
 
-### 1. Контекст і передумови
-Більшість рішень у цій області зводяться до trade-off між швидкістю, простотою і контролем. Варто починати з найпростішого варіанта, який можна виміряти.
+### 1. Context & prerequisites
+Most decisions in this area boil down to a trade-off between speed, simplicity and control. Start with the simplest variant you can measure.
 
-### 2. Варіанти рішень
-1. **Мінімальний** — готові інструменти, нуль інфраструктури
-2. **Збалансований** — кастомізація там, де є виміряна потреба
-3. **Просунутий** — власна інфраструктура; виправданий при >10× навантаженні
+### 2. Solution options
+1. **Minimal** — off-the-shelf tools, zero infrastructure
+2. **Balanced** — customization only where a measured need exists
+3. **Advanced** — own infrastructure; justified at >10× the load
 
-### 3. Рекомендація
-Почати з мінімального, заміряти, ускладнювати лише вузькі місця.
+### 3. Recommendation
+Start minimal, measure, harden only the bottlenecks.
 
-## Джерела та наступні кроки
-- Перевірити припущення на реальних даних
-- Порівняти 2–3 варіанти за однією метрикою
-- Зафіксувати рішення в ADR
+## Sources & next steps
+- Validate assumptions on real data
+- Compare 2–3 options against a single metric
+- Record the decision in an ADR
 
-> *Deep Research у демо-режимі: структуровано, але без живого пошуку в мережі.*`;
+> *Deep Research in demo mode: structured, but without live web crawling.*`;
   }
 
   if (opts.search) {
-    text += `\n\n---\n\n**Джерела (демо):** qwen.ai/blog · github.com/QwenLM · docs-агрегаторів API`;
+    text += `\n\n---\n\n**Sources (demo):** aide.dev/blog · aggregator API docs`;
   }
 
   return { thinking: opts.thinking ? thinkAbout(userText) : undefined, text };
 }
 
-/* ================= Кодер: генерація проєктів ================= */
+/* ================= Coder: project generation ================= */
 
 export interface ScaffoldResult {
   templateId: string;
@@ -213,9 +213,9 @@ export function scaffoldProject(desc: string): ScaffoldResult {
 }
 
 const LLM_PROMPT = (desc: string) =>
-  `Ти — старший frontend-розробник. Створи ОДИН самодостатній веб-застосунок (один HTML-файл з <style> і <script> всередині) за описом нижче. UI українською, сучасний мінімалістичний дизайн, усе має працювати одразу. Поверни ЛИШЕ один блок коду \`\`\`html без жодних пояснень до чи після.\n\nОпис: ${desc}`;
+  `You are a senior frontend developer. Create ONE self-contained web app (a single HTML file with <style> and <script> inline) for the request below. UI copy in English, modern minimal design, everything must work immediately. Return ONLY one \`\`\`html code block with no explanation before or after.\n\nRequest: ${desc}`;
 
-/** Спробувати згенерувати проєкт справжньою моделлю. Повертає null, якщо не вийшло. */
+/** Try to generate the project with a real model. Returns null on failure. */
 export async function generateProjectWithLLM(
   desc: string,
   providerId: string,
@@ -228,8 +228,8 @@ export async function generateProjectWithLLM(
   const model = modelById.get(modelId);
   if (!provider || !model || !cfg?.key?.trim()) return null;
   try {
-    onLine(`⏺ Підключено: ${provider.name} · ${model.name}`);
-    onLine("⏺ Надсилаю запит на генерацію коду…");
+    onLine(`⏺ Connected: ${provider.name} · ${model.name}`);
+    onLine("⏺ Sending the code-generation request…");
     let full = "";
     for await (const delta of streamChat({
       model,
@@ -242,20 +242,20 @@ export async function generateProjectWithLLM(
       full += delta;
     }
     const html = extractHtmlBlock(full);
-    if (!html) throw new Error("модель не повернула блок коду ```html");
-    onLine(`✓ Отримано ${(html.length / 1024).toFixed(1)} КБ коду від ${model.name}`);
+    if (!html) throw new Error("the model returned no ```html code block");
+    onLine(`✓ Received ${(html.length / 1024).toFixed(1)} KB of code from ${model.name}`);
     return [
       { name: "index.html", content: html },
       {
         name: "README.md",
-        content: `# Проєкт, згенерований ${model.name}\n\nОпис: ${desc}\n\nЗапуск: відкрий index.html у браузері.`,
+        content: `# Project generated by ${model.name}\n\nRequest: ${desc}\n\nRun: open index.html in a browser.`,
       },
     ];
   } catch (e) {
     if (signal.aborted) throw e;
-    const msg = e instanceof NoKeyError ? "немає ключа" : e instanceof Error ? e.message : String(e);
-    onLine(`⚠ LLM-генерація не вдалась (${msg.slice(0, 80)})`);
-    onLine("⏺ Перемикаюсь на вбудований генератор QStudio…");
+    const msg = e instanceof NoKeyError ? "no API key" : e instanceof Error ? e.message : String(e);
+    onLine(`⚠ LLM generation failed (${msg.slice(0, 80)})`);
+    onLine("⏺ Falling back to the built-in AiDe generator…");
     return null;
   }
 }
@@ -265,7 +265,7 @@ export function extractHtmlBlock(text: string): string | null {
   return m ? m[1].trim() : null;
 }
 
-/** Збирає index.html з інлайнованими css/js для preview в iframe. */
+/** Assembles index.html with inlined css/js for the iframe preview. */
 export function buildPreviewDoc(files: ProjectFile[]): string {
   const get = (n: string) => files.find((f) => f.name === n)?.content ?? "";
   let html = get("index.html") || files[0]?.content || "";
@@ -276,22 +276,20 @@ export function buildPreviewDoc(files: ProjectFile[]): string {
   return html;
 }
 
-/* ================= підказки ================= */
+/* ================= suggestions ================= */
 
 export const CHAT_SUGGESTIONS = [
-  "Напиши хук useDebounce з тестами",
-  "Порівняй Ollama і vLLM для локальних моделей",
-  "Поясни RAG простими словами",
-  "Напиши вірш про термінал о третій ночі",
+  "Write a useDebounce hook with tests",
+  "Compare Ollama and vLLM for local models",
+  "Explain RAG in plain words",
+  "Write a short poem about a terminal at 3 a.m.",
 ];
 
 export const CODER_SUGGESTIONS = [
-  "To-Do застосунок зі збереженням у localStorage",
-  "Лендинг кав'ярні «Зерно»",
-  "Дашборд аналітики з графіком продажів",
-  "Гра «Змійка» на canvas",
-  "Pomodoro-таймер з кільцем прогресу",
-  "Markdown-нотатник з автозбереженням",
+  "To-Do app that saves to localStorage",
+  'Landing page for a coffee shop "Grain"',
+  "Analytics dashboard with a sales chart",
+  "Snake game on canvas",
+  "Pomodoro timer with a progress ring",
+  "Markdown notebook with autosave",
 ];
-
-export { PROVIDERS };

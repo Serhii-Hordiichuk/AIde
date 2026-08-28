@@ -1,5 +1,5 @@
-/* Шаблони проєктів, які Кодер «генерує з нуля».
-   Кожен шаблон — це повністю робочий міні-застосунок (index.html + styles.css + app.js). */
+/* Project templates that AiDe Coder "generates from scratch".
+   Each template is a fully working mini-app (index.html + styles.css + app.js). */
 
 export interface TemplateDef {
   id: string;
@@ -10,7 +10,7 @@ export interface TemplateDef {
 
 const shell = (title: string, body: string, withJs = true) =>
   `<!doctype html>
-<html lang="uk">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -27,17 +27,17 @@ ${withJs ? `  <script src="app.js"></script>` : ""}
 export const TEMPLATES: TemplateDef[] = [
   {
     id: "todo",
-    label: "To-Do застосунок",
-    keywords: ["todo", "туду", "задач", "список справ", "to-do", "планер"],
+    label: "To-Do app",
+    keywords: ["todo", "to-do", "task", "checklist", "planner"],
     build: (name) => ({
       "index.html": shell(
         name,
         `  <main class="app">
     <h1>${name}</h1>
-    <p class="sub">Створено Кодером QStudio — дані живуть у localStorage</p>
+    <p class="sub">Built by AiDe Coder — data lives in localStorage</p>
     <div class="row">
-      <input id="input" placeholder="Нова задача…" />
-      <button id="add">Додати</button>
+      <input id="input" placeholder="New task…" />
+      <button id="add">Add</button>
     </div>
     <ul id="list"></ul>
     <p id="counter" class="counter"></p>
@@ -50,9 +50,9 @@ h1 { font-size: 22px; }
 .sub { color: #64748b; font-size: 13px; margin: 6px 0 18px; }
 .row { display: flex; gap: 8px; }
 input { flex: 1; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 14px; outline: none; }
-input:focus { border-color: #615ced; }
-#add { padding: 10px 18px; background: #615ced; color: #fff; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
-#add:hover { background: #4f49d8; }
+input:focus { border-color: #0f9d8f; }
+#add { padding: 10px 18px; background: #0f9d8f; color: #fff; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
+#add:hover { background: #0c8377; }
 ul { list-style: none; padding: 0; margin-top: 16px; display: grid; gap: 8px; }
 li { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; background: #f8fafc; border: 1px solid #eef2f7; border-radius: 10px; }
 li span { cursor: pointer; flex: 1; }
@@ -60,7 +60,7 @@ li.done span { text-decoration: line-through; color: #94a3b8; }
 li button { border: none; background: none; color: #cbd5e1; font-size: 15px; cursor: pointer; }
 li button:hover { color: #ef4444; }
 .counter { margin-top: 14px; color: #64748b; font-size: 12.5px; }`,
-      "app.js": `var KEY = "qtodo-items";
+      "app.js": `var KEY = "aide-todo-items";
 function loadItems() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
 var items = loadItems();
 var list = document.getElementById("list");
@@ -82,7 +82,7 @@ function render() {
     list.appendChild(li);
   });
   var left = items.filter(function (i) { return !i.done; }).length;
-  counter.textContent = left + " активних \\u00b7 " + items.length + " всього";
+  counter.textContent = left + " open \\u00b7 " + items.length + " total";
 }
 document.getElementById("add").onclick = function () {
   var t = input.value.trim();
@@ -92,40 +92,40 @@ document.getElementById("add").onclick = function () {
 };
 input.addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("add").click(); });
 render();`,
-      "README.md": `# ${name}\n\nМінімальний To-Do застосунок без залежностей.\n\n- Додавання задач: поле + Enter\n- Клік по задачі — виконано/ні\n- ✕ — видалити\n- Стан зберігається в localStorage\n\nЗапуск: просто відкрий index.html.`,
+      "README.md": `# ${name}\n\nA minimal dependency-free To-Do app.\n\n- Add tasks: input + Enter\n- Click a task to toggle done\n- ✕ to delete\n- State persists in localStorage\n\nRun: just open index.html.`,
     }),
   },
   {
     id: "landing",
-    label: "Лендинг кав'ярні",
-    keywords: ["лендинг", "landing", "кав'ярн", "кава", "сайт-візит", "промо"],
+    label: "Coffee shop landing",
+    keywords: ["landing", "coffee", "cafe", "café", "promo", "business site", "shop"],
     build: (name) => ({
       "index.html": shell(
         name,
         `  <header>
     <span class="logo">◈ ${name}</span>
-    <nav><a href="#menu">Меню</a><a href="#about">Про нас</a><a href="#hours">Час роботи</a></nav>
+    <nav><a href="#menu">Menu</a><a href="#about">About</a><a href="#hours">Hours</a></nav>
   </header>
   <section class="hero">
-    <p class="eyebrow">Свіжообсмажені зерна щотижня</p>
-    <h1>Кава, яка<br/><em>прокидається</em> разом з тобою</h1>
-    <p class="lead">Альтернативні способи заварювання, власна випічка з 7:30 ранку.</p>
-    <a class="cta" href="#menu">Подивитись меню</a>
+    <p class="eyebrow">Freshly roasted beans, every week</p>
+    <h1>Coffee that<br/><em>wakes up</em> with you</h1>
+    <p class="lead">Alternative brews, in-house pastries from 7:30 in the morning.</p>
+    <a class="cta" href="#menu">See the menu</a>
   </section>
   <section id="menu" class="cards">
-    <div class="card"><h3>Еспресо-тонік</h3><p>Подвійний шот, тонік, лід і цедра лимона.</p><span>95 ₴</span></div>
-    <div class="card"><h3>Фільтр V60</h3><p>Ефіопія Іргачефф: ягоди, бергамот, квіти.</p><span>110 ₴</span></div>
-    <div class="card"><h3>Матча-лате</h3><p>Церемоніальна матча на вівсяному молоці.</p><span>120 ₴</span></div>
+    <div class="card"><h3>Espresso Tonic</h3><p>Double shot, tonic, ice and a twist of lemon.</p><span>$4.5</span></div>
+    <div class="card"><h3>V60 Pour-over</h3><p>Ethiopia Yirgacheffe: berries, bergamot, florals.</p><span>$5.0</span></div>
+    <div class="card"><h3>Matcha Latte</h3><p>Ceremonial matcha on oat milk.</p><span>$5.5</span></div>
   </section>
   <section id="about" class="about">
-    <h2>Маленька кав'ярня з великою Obsesією</h2>
-    <p>Ми обсмажуємо зерно самі, зважуємо кожен шот і пам'ятаємо замовлення постійних гостей. Без пафосу — просто добра кава.</p>
+    <h2>A small café with a big obsession</h2>
+    <p>We roast our own beans, weigh every shot and remember our regulars' orders. No pretence — just good coffee.</p>
   </section>
   <section id="hours" class="hours">
-    <h2>Час роботи</h2>
-    <p>Пн–Пт: 7:30 – 20:00<br/>Сб–Нд: 9:00 – 21:00</p>
+    <h2>Hours</h2>
+    <p>Mon–Fri: 7:30 – 20:00<br/>Sat–Sun: 9:00 – 21:00</p>
   </section>
-  <footer>© <span id="year"></span> ${name} · Зроблено Кодером QStudio</footer>`,
+  <footer>© <span id="year"></span> ${name} · Made with AiDe Coder</footer>`,
         false
       ),
       "styles.css": `* { box-sizing: border-box; margin: 0; font-family: Georgia, 'Times New Roman', serif; }
@@ -151,31 +151,31 @@ nav a:hover { color: #2b2118; }
 .about p, .hours p { color: #6b5847; line-height: 1.7; }
 footer { padding: 26px 6vw; color: #a4937f; font-size: 13px; border-top: 1px solid #eee4d8; }`,
       "app.js": `document.getElementById("year").textContent = new Date().getFullYear();`,
-      "README.md": `# ${name}\n\nОдносторінковий лендинг кав'ярні: hero, меню, про нас, час роботи.\n\nЗапуск: відкрий index.html.`,
+      "README.md": `# ${name}\n\nA one-page coffee shop landing: hero, menu, about, hours.\n\nRun: open index.html.`,
     }),
   },
   {
     id: "dashboard",
-    label: "Дашборд аналітики",
-    keywords: ["дашборд", "dashboard", "аналітик", "метрики", "статистик", "графік"],
+    label: "Analytics dashboard",
+    keywords: ["dashboard", "analytics", "metrics", "stats", "chart", "kpi"],
     build: (name) => ({
       "index.html": shell(
         name,
         `  <main class="dash">
     <h1>${name}</h1>
     <div class="stats">
-      <div class="stat"><span>Відвідувачі</span><strong>12 480</strong><em>+8.2%</em></div>
-      <div class="stat"><span>Замовлення</span><strong>1 243</strong><em>+3.1%</em></div>
-      <div class="stat"><span>Конверсія</span><strong>4.7%</strong><em class="down">−0.4%</em></div>
-      <div class="stat"><span>Середній чек</span><strong>812 ₴</strong><em>+12 ₴</em></div>
+      <div class="stat"><span>Visitors</span><strong>12,480</strong><em>+8.2%</em></div>
+      <div class="stat"><span>Orders</span><strong>1,243</strong><em>+3.1%</em></div>
+      <div class="stat"><span>Conversion</span><strong>4.7%</strong><em class="down">−0.4%</em></div>
+      <div class="stat"><span>Avg. order</span><strong>$38.2</strong><em>+$0.6</em></div>
     </div>
     <div class="chart-card">
-      <div class="chart-head"><h2>Динаміка продажів</h2>
-        <div><button id="p-tyzhden" class="pbtn on">Тиждень</button><button id="p-misyats" class="pbtn">Місяць</button></div>
+      <div class="chart-head"><h2>Sales trend</h2>
+        <div><button id="p-week" class="pbtn on">Week</button><button id="p-month" class="pbtn">Month</button></div>
       </div>
       <svg id="chart" viewBox="0 0 480 160" preserveAspectRatio="none">
-        <polyline points="" fill="none" stroke="#615ced" stroke-width="2.5" stroke-linejoin="round"/>
-        <circle r="4" fill="#615ced"/><circle r="4" fill="#615ced"/><circle r="4" fill="#615ced"/><circle r="4" fill="#615ced"/><circle r="4" fill="#615ced"/><circle r="4" fill="#615ced"/><circle r="4" fill="#615ced"/>
+        <polyline points="" fill="none" stroke="#0f9d8f" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle r="4" fill="#0f9d8f"/><circle r="4" fill="#0f9d8f"/><circle r="4" fill="#0f9d8f"/><circle r="4" fill="#0f9d8f"/><circle r="4" fill="#0f9d8f"/><circle r="4" fill="#0f9d8f"/><circle r="4" fill="#0f9d8f"/>
       </svg>
     </div>
   </main>`
@@ -193,9 +193,9 @@ h1 { font-size: 22px; margin-bottom: 20px; }
 .chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .chart-head h2 { font-size: 16px; }
 .pbtn { border: 1px solid #e3e5eb; background: #fff; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; margin-left: 6px; color: #565b66; }
-.pbtn.on { background: #615ced; border-color: #615ced; color: #fff; }
+.pbtn.on { background: #0f9d8f; border-color: #0f9d8f; color: #fff; }
 svg { width: 100%; height: 180px; }`,
-      "app.js": `var DATA = { tyzhden: [12, 18, 14, 22, 28, 24, 31], misyats: [120, 180, 150, 220, 280, 240, 310] };
+      "app.js": `var DATA = { week: [12, 18, 14, 22, 28, 24, 31], month: [120, 180, 150, 220, 280, 240, 310] };
 function draw(key) {
   var vals = DATA[key];
   var svg = document.getElementById("chart");
@@ -216,27 +216,27 @@ function setP(btn, key) {
   btn.classList.add("on");
   draw(key);
 }
-document.getElementById("p-tyzhden").onclick = function () { setP(this, "tyzhden"); };
-document.getElementById("p-misyats").onclick = function () { setP(this, "misyats"); };
-draw("tyzhden");`,
-      "README.md": `# ${name}\n\nДашборд з KPI-картками та SVG-графіком. Перемикач «Тиждень/Місяць» перемальовує графік.\n\nЗапуск: відкрий index.html.`,
+document.getElementById("p-week").onclick = function () { setP(this, "week"); };
+document.getElementById("p-month").onclick = function () { setP(this, "month"); };
+draw("week");`,
+      "README.md": `# ${name}\n\nA dashboard with KPI cards and an SVG chart. The Week/Month toggle redraws the chart.\n\nRun: open index.html.`,
     }),
   },
   {
     id: "snake",
-    label: "Гра «Змійка»",
-    keywords: ["гра", "змійк", "snake", "game", "аркад"],
+    label: "Snake game",
+    keywords: ["game", "snake", "arcade"],
     build: (name) => ({
       "index.html": shell(
         name,
         `  <main class="game-wrap">
     <h1>${name}</h1>
-    <p class="sub">Керування: стрілки або WASD</p>
+    <p class="sub">Controls: arrow keys or WASD</p>
     <div class="board">
       <canvas id="game" width="400" height="400"></canvas>
-      <button id="restart" style="display:none">Грати знову</button>
+      <button id="restart" style="display:none">Play again</button>
     </div>
-    <p>Рахунок: <strong id="score">0</strong></p>
+    <p>Score: <strong id="score">0</strong></p>
   </main>`
       ),
       "styles.css": `* { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
@@ -287,7 +287,7 @@ function gameOver() {
   clearInterval(timer);
   ctx.fillStyle = "rgba(15,23,42,.75)"; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.fillStyle = "#fff"; ctx.font = "bold 22px system-ui"; ctx.textAlign = "center";
-  ctx.fillText("Рахунок: " + score, cv.width / 2, cv.height / 2);
+  ctx.fillText("Score: " + score, cv.width / 2, cv.height / 2);
   document.getElementById("restart").style.display = "inline-block";
 }
 document.addEventListener("keydown", function (e) {
@@ -299,50 +299,50 @@ document.addEventListener("keydown", function (e) {
 });
 document.getElementById("restart").onclick = function () { this.style.display = "none"; reset(); };
 reset();`,
-      "README.md": `# ${name}\n\nКласична «Змійка» на canvas: прискорення з кожною їжею, рахунок, рестарт.\n\nЗапуск: відкрий index.html.`,
+      "README.md": `# ${name}\n\nA classic canvas Snake: speeds up with every snack, keeps score, restarts.\n\nRun: open index.html.`,
     }),
   },
   {
     id: "pomodoro",
-    label: "Pomodoro-таймер",
-    keywords: ["pomodoro", "помодоро", "таймер", "фокус", "продуктивн"],
+    label: "Pomodoro timer",
+    keywords: ["pomodoro", "timer", "focus", "productivity"],
     build: (name) => ({
       "index.html": shell(
         name,
         `  <main class="pomo">
     <h1>${name}</h1>
     <div class="modes">
-      <button id="m-focus" class="mode on">Фокус 25</button>
-      <button id="m-short" class="mode">Пауза 5</button>
-      <button id="m-long" class="mode">Довга 15</button>
+      <button id="m-focus" class="mode on">Focus 25</button>
+      <button id="m-short" class="mode">Break 5</button>
+      <button id="m-long" class="mode">Long 15</button>
     </div>
     <div class="ring-wrap">
       <svg viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r="54" fill="none" stroke="#edeafb" stroke-width="8"/>
-        <circle id="ring" cx="60" cy="60" r="54" fill="none" stroke="#615ced" stroke-width="8"
+        <circle cx="60" cy="60" r="54" fill="none" stroke="#e4f5f1" stroke-width="8"/>
+        <circle id="ring" cx="60" cy="60" r="54" fill="none" stroke="#0f9d8f" stroke-width="8"
                 stroke-linecap="round" transform="rotate(-90 60 60)"/>
       </svg>
       <span id="time">25:00</span>
     </div>
     <div class="ctrl">
-      <button id="toggle">Старт</button>
-      <button id="reset" class="ghost">Скинути</button>
+      <button id="toggle">Start</button>
+      <button id="reset" class="ghost">Reset</button>
     </div>
   </main>`
       ),
       "styles.css": `* { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
-body { background: #fafaff; min-height: 100vh; display: grid; place-items: center; }
+body { background: #f7fbfa; min-height: 100vh; display: grid; place-items: center; }
 .pomo { text-align: center; padding: 24px; }
 h1 { font-size: 22px; margin-bottom: 16px; }
 .modes { display: flex; gap: 8px; justify-content: center; margin-bottom: 26px; }
 .mode { border: 1px solid #e3e5eb; background: #fff; border-radius: 999px; padding: 8px 16px; font-size: 13px; cursor: pointer; color: #565b66; }
-.mode.on { background: #615ced; border-color: #615ced; color: #fff; }
+.mode.on { background: #0f9d8f; border-color: #0f9d8f; color: #fff; }
 .ring-wrap { position: relative; width: 240px; margin: 0 auto 26px; }
 .ring-wrap svg { width: 100%; }
 #time { position: absolute; inset: 0; display: grid; place-items: center; font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .ctrl { display: flex; gap: 10px; justify-content: center; }
-#toggle { background: #615ced; color: #fff; border: none; border-radius: 10px; padding: 12px 30px; font-size: 15px; font-weight: 600; cursor: pointer; }
-#toggle:hover { background: #4f49d8; }
+#toggle { background: #0f9d8f; color: #fff; border: none; border-radius: 10px; padding: 12px 30px; font-size: 15px; font-weight: 600; cursor: pointer; }
+#toggle:hover { background: #0c8377; }
 .ghost { background: none; border: 1px solid #e3e5eb; border-radius: 10px; padding: 12px 20px; cursor: pointer; color: #565b66; }`,
       "app.js": `var MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
 var mode = "focus", left = MODES.focus, tick = null;
@@ -359,13 +359,13 @@ function render() {
   ring.style.strokeDashoffset = C * (1 - left / MODES[mode]);
   document.title = fmt(left) + " — Pomodoro";
 }
-function stop() { clearInterval(tick); tick = null; document.getElementById("toggle").textContent = "Старт"; }
+function stop() { clearInterval(tick); tick = null; document.getElementById("toggle").textContent = "Start"; }
 document.getElementById("toggle").onclick = function () {
   if (tick) { stop(); return; }
-  this.textContent = "Пауза";
+  this.textContent = "Pause";
   tick = setInterval(function () {
     left--;
-    if (left <= 0) { left = 0; render(); stop(); alert("Час вийшов!"); left = MODES[mode]; render(); return; }
+    if (left <= 0) { left = 0; render(); stop(); alert("Time is up!"); left = MODES[mode]; render(); return; }
     render();
   }, 1000);
 };
@@ -379,24 +379,24 @@ document.getElementById("reset").onclick = function () { stop(); left = MODES[mo
   };
 });
 render();`,
-      "README.md": `# ${name}\n\nPomodoro-таймер з кільцем прогресу (SVG) і режимами 25/5/15 хв. Оновлює заголовок вкладки.\n\nЗапуск: відкрий index.html.`,
+      "README.md": `# ${name}\n\nA Pomodoro timer with an SVG progress ring and 25/5/15-minute modes. Updates the tab title.\n\nRun: open index.html.`,
     }),
   },
   {
     id: "notes",
-    label: "Markdown-нотатник",
-    keywords: ["нотат", "notes", "маркдаун", "запис", "щоденник"],
+    label: "Markdown notes",
+    keywords: ["notes", "notebook", "markdown", "diary", "journal"],
     build: (name) => ({
       "index.html": shell(
         name,
         `  <main class="notes">
     <aside>
-      <button id="new">+ Нова нотатка</button>
+      <button id="new">+ New note</button>
       <ul id="list"></ul>
     </aside>
     <section>
-      <input id="title" placeholder="Заголовок…" />
-      <textarea id="body" placeholder="Текст нотатки… Підтримується **жирний**, *курсив*, \`код\`"></textarea>
+      <input id="title" placeholder="Title…" />
+      <textarea id="body" placeholder="Note text… Supports **bold**, *italic*, \`code\`"></textarea>
       <div id="preview" class="preview"></div>
     </section>
   </main>`
@@ -405,17 +405,17 @@ render();`,
 body { background: #f6f7fb; }
 .notes { display: grid; grid-template-columns: 240px 1fr; height: 100vh; }
 aside { background: #fff; border-right: 1px solid #e3e5eb; padding: 16px; overflow-y: auto; }
-#new { width: 100%; background: #615ced; color: #fff; border: none; border-radius: 10px; padding: 10px; font-weight: 600; cursor: pointer; margin-bottom: 14px; }
+#new { width: 100%; background: #0f9d8f; color: #fff; border: none; border-radius: 10px; padding: 10px; font-weight: 600; cursor: pointer; margin-bottom: 14px; }
 #list { list-style: none; padding: 0; display: grid; gap: 6px; }
 #list li { padding: 10px 12px; border-radius: 9px; cursor: pointer; font-size: 13.5px; color: #565b66; }
 #list li:hover { background: #f2f3f6; }
-#list li.on { background: #edeafb; color: #4f49d8; font-weight: 600; }
+#list li.on { background: #e4f5f1; color: #0c8377; font-weight: 600; }
 section { padding: 22px; display: grid; grid-template-rows: auto 1fr 1fr; gap: 12px; overflow: hidden; }
 #title { border: none; background: none; font-size: 22px; font-weight: 700; outline: none; }
 textarea, .preview { border: 1px solid #e3e5eb; border-radius: 12px; background: #fff; padding: 16px; font-size: 14px; line-height: 1.65; overflow-y: auto; }
 textarea { resize: none; outline: none; font-family: ui-monospace, monospace; font-size: 13px; }
 .preview code { background: #f2f3f6; padding: 1px 5px; border-radius: 4px; }`,
-      "app.js": `var KEY = "qnotes-v1";
+      "app.js": `var KEY = "aide-notes-v1";
 function loadNotes() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
 var notes = loadNotes();
 var active = 0;
@@ -436,7 +436,7 @@ function render() {
   listEl.innerHTML = "";
   notes.forEach(function (n, i) {
     var li = document.createElement("li");
-    li.textContent = n.title || "Без назви";
+    li.textContent = n.title || "Untitled";
     if (i === active) li.className = "on";
     li.onclick = function () { active = i; openNote(); };
     listEl.appendChild(li);
@@ -453,16 +453,16 @@ document.getElementById("new").onclick = function () {
 };
 titleEl.oninput = function () { notes[active].title = this.value; save(); render(); };
 bodyEl.oninput = function () { notes[active].body = this.value; save(); prevEl.innerHTML = md(this.value); };
-if (!notes.length) notes.push({ title: "Привіт!", body: "Це твоя перша нотатка. Пиши **markdown** прямо тут." });
+if (!notes.length) notes.push({ title: "Hi!", body: "This is your first note. Write **markdown** right here." });
 save(); render();`,
-      "README.md": `# ${name}\n\nНотатник з бічним списком, автозбереженням у localStorage і живим mini-markdown переглядом.\n\nЗапуск: відкрий index.html.`,
+      "README.md": `# ${name}\n\nA notes app with a sidebar list, localStorage autosave and a live mini-markdown preview.\n\nRun: open index.html.`,
     }),
   },
 ];
 
 export const GENERIC: TemplateDef = {
   id: "generic",
-  label: "Стартовий застосунок",
+  label: "Starter app",
   keywords: [],
   build: (name, desc) => ({
     "index.html": shell(
@@ -470,26 +470,26 @@ export const GENERIC: TemplateDef = {
       `  <main class="app">
     <span class="mark">◈</span>
     <h1>${name}</h1>
-    <p class="desc">${desc || "Проєкт, створений Кодером QStudio з нуля."}</p>
-    <button id="go">Натисни мене</button>
+    <p class="desc">${desc || "A project created from scratch by AiDe Coder."}</p>
+    <button id="go">Click me</button>
     <p id="out" class="out"></p>
   </main>`
     ),
     "styles.css": `* { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
 body { background: #f6f7fb; min-height: 100vh; display: grid; place-items: center; }
 .app { text-align: center; padding: 40px; max-width: 480px; }
-.mark { font-size: 34px; color: #615ced; }
+.mark { font-size: 34px; color: #0f9d8f; }
 h1 { font-size: 26px; margin: 12px 0 8px; }
 .desc { color: #565b66; line-height: 1.6; margin-bottom: 22px; }
-#go { background: #615ced; color: #fff; border: none; border-radius: 10px; padding: 12px 26px; font-size: 15px; font-weight: 600; cursor: pointer; transition: transform .12s; }
-#go:hover { transform: translateY(-2px); background: #4f49d8; }
-.out { margin-top: 16px; color: #615ced; font-weight: 600; min-height: 20px; }`,
+#go { background: #0f9d8f; color: #fff; border: none; border-radius: 10px; padding: 12px 26px; font-size: 15px; font-weight: 600; cursor: pointer; transition: transform .12s; }
+#go:hover { transform: translateY(-2px); background: #0c8377; }
+.out { margin-top: 16px; color: #0f9d8f; font-weight: 600; min-height: 20px; }`,
     "app.js": `var n = 0;
 document.getElementById("go").onclick = function () {
   n++;
-  document.getElementById("out").textContent = "Кліків: " + n;
+  document.getElementById("out").textContent = "Clicks: " + n;
 };`,
-    "README.md": `# ${name}\n\nСтартовий односторінковий застосунок.\n\nОпис задачі: ${desc}\n\nЗапуск: відкрий index.html.`,
+    "README.md": `# ${name}\n\nA starter single-page app.\n\nTask: ${desc}\n\nRun: open index.html.`,
   }),
 };
 
@@ -500,10 +500,10 @@ export function pickTemplate(desc: string): TemplateDef {
 
 export function deriveName(desc: string, tplId: string): string {
   const defaults: Record<string, string> = {
-    todo: "Мої задачі", landing: "Зерно", dashboard: "Аналітика", snake: "Змійка",
-    pomodoro: "Фокус-таймер", notes: "Нотатник", generic: "Мій застосунок",
+    todo: "My Tasks", landing: "Grain", dashboard: "Analytics", snake: "Snake",
+    pomodoro: "Focus Timer", notes: "Notes", generic: "My App",
   };
-  const m = /[«"]([^»"]+)[»"]/.exec(desc);
+  const m = /["«”]([^"»”]+)["»”]/.exec(desc);
   if (m) return m[1];
-  return defaults[tplId] ?? "Мій застосунок";
+  return defaults[tplId] ?? "My App";
 }

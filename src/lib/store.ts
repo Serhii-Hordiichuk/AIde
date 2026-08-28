@@ -49,7 +49,7 @@ export interface ProviderCfg {
   baseUrl: string;
 }
 
-const NS = "qsf.";
+const NS = "aide.";
 
 export function load<T>(k: string, fallback: T): T {
   try {
@@ -71,5 +71,5 @@ export function save(k: string, v: unknown) {
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 export function newConversation(): Conversation {
-  return { id: uid(), title: "Новий чат", messages: [], createdAt: Date.now() };
+  return { id: uid(), title: "New chat", messages: [], createdAt: Date.now() };
 }

@@ -7,18 +7,18 @@ import { Markdown } from "../lib/markdown";
 import { uid, DEFAULT_PARAMS, type ChatMessage, type Conversation, type ProviderCfg } from "../lib/store";
 import ModelPicker from "./ModelPicker";
 import {
-  Star, SendIcon, StopIcon, PaperclipIcon, CopyIcon, CheckIcon,
+  BrandMark, SendIcon, StopIcon, PaperclipIcon, CopyIcon, CheckIcon,
   BrainIcon, GlobeIcon, SearchIcon, CodeIcon, BulbIcon, PenIcon, ChartIcon,
 } from "./Icons";
 
 const PERSONA =
-  "Ти — Qwen, допоміжний AI-асистент у QStudio (форк Qwen Studio). Відповідай українською, стисло й по суті, з markdown-форматуванням і блоками коду там, де це доречно.";
+  "You are AiDe, a helpful AI assistant inside the AiDe studio. Answer in English, concise and to the point, using markdown formatting and code blocks where appropriate.";
 
 const SUGGESTIONS = [
-  { icon: CodeIcon, title: "Напиши код", text: "Напиши хук useDebounce з тестами" },
-  { icon: BulbIcon, title: "Поясни концепцію", text: "Поясни RAG простими словами" },
-  { icon: PenIcon, title: "Допоможи з текстом", text: "Напиши вірш про термінал о третій ночі" },
-  { icon: ChartIcon, title: "Порівняй інструменти", text: "Порівняй Ollama і vLLM для локальних моделей" },
+  { icon: CodeIcon, title: "Write code", text: "Write a useDebounce hook with tests" },
+  { icon: BulbIcon, title: "Explain a concept", text: "Explain RAG in plain words" },
+  { icon: PenIcon, title: "Help with writing", text: "Write a short poem about a terminal at 3 a.m." },
+  { icon: ChartIcon, title: "Compare tools", text: "Compare Ollama and vLLM for local models" },
 ];
 
 interface Props {
@@ -86,7 +86,6 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
     const live = !!cfg?.key?.trim();
     let full = "";
     let isDemo = !live;
-    let thinkText: string | undefined;
 
     if (live) {
       try {
@@ -111,7 +110,7 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
         const aborted = e instanceof DOMException && e.name === "AbortError";
         if (!aborted && !full) {
           const note = e instanceof Error ? e.message : String(e);
-          full = `*Не вдалося отримати відповідь від ${provider.name} (${note.slice(0, 120)}). Перемикаюсь на демо-режим.*\n\n`;
+          full = `*Couldn't reach ${provider.name} (${note.slice(0, 120)}). Switching to demo mode.*\n\n`;
           setMsg(asstId, (m) => ({ ...m, content: full }));
           isDemo = true;
         }
@@ -120,12 +119,12 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
 
     if (isDemo && !stopRef.current) {
       const out = demoReply(text, model.name, provider.name, { thinking, search, deep });
-      thinkText = out.thinking;
-      if (thinkText) {
+      if (out.thinking) {
+        const thinkText = out.thinking;
         setMsg(asstId, (m) => ({ ...m, demo: true, thinking: thinkText } as ChatMessage));
       }
-      const target = (full ? full : "") + out.text;
-      let i = 0;
+      const target = full + out.text;
+      let i = full.length;
       await new Promise<void>((resolve) => {
         const step = () => {
           if (stopRef.current) {
@@ -164,25 +163,27 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
 
   return (
     <div className="flex h-full flex-col">
-      {/* стрічка чату */}
+      {/* message feed */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {empty ? (
           <div className="flex h-full flex-col items-center justify-center px-6 pb-24">
-            <div className="star-spin mb-5">
-              <Star className="h-14 w-14 drop-shadow-[0_0_28px_#615ced88]" />
+            <div className="floaty mb-5">
+              <BrandMark className="h-16 w-16 drop-shadow-[0_0_28px_#35e0c266]" />
             </div>
             <h1 className="font-display text-[clamp(24px,3vw,34px)] font-bold tracking-tight">
-              Привіт, я <span className="text-violet2">Qwen</span>
+              Hi, I'm <span className="text-aqua2">AiDe</span>
             </h1>
-            <p className="mt-2 text-[14px] text-dim">Чим можу допомогти сьогодні? Працюю через {provider.name}.</p>
+            <p className="mt-2 text-[14px] text-dim">
+              What can I help you build today? Running on {provider.name}.
+            </p>
             <div className="mt-8 grid w-full max-w-[560px] grid-cols-2 gap-2.5 max-sm:grid-cols-1">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s.title}
                   onClick={() => send(s.text)}
-                  className="row-hl group flex items-center gap-3 rounded-xl border border-line bg-panel/70 px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-violet/45"
+                  className="row-hl group flex items-center gap-3 rounded-xl border border-line bg-panel/70 px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-aqua/45"
                 >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet/12 text-violet2 transition-transform group-hover:scale-110">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-aqua/12 text-aqua2 transition-transform group-hover:scale-110">
                     <s.icon className="h-4 w-4" />
                   </span>
                   <span>
@@ -202,7 +203,7 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
         )}
       </div>
 
-      {/* композер */}
+      {/* composer */}
       <div className="mx-auto w-full max-w-[760px] px-5 pb-5">
         <div className="composer-glow rounded-2xl border border-line2 bg-panel2 transition-all">
           <textarea
@@ -219,24 +220,24 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
               }
             }}
             rows={1}
-            placeholder={`Запитай ${model.name}…`}
+            placeholder={`Message ${model.name}…`}
             className="block w-full resize-none bg-transparent px-4 pt-3.5 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
           />
           <div className="flex items-center gap-2 px-3 pb-2.5 pt-1">
-            <ModelPicker modelId={modelId} onChange={onModel} />
-            <button className="icon-btn" title="Прикріпити файл (скоро)">
+            <ModelPicker modelId={modelId} onChange={onModel} cfgs={cfgs} />
+            <button className="icon-btn" title="Attach a file (coming soon)">
               <PaperclipIcon className="h-4 w-4" />
             </button>
 
             <div className="ml-auto flex items-center gap-1.5">
-              <Toggle on={thinking} set={setThinking} icon={<BrainIcon className="h-3.5 w-3.5" />} label="Думати" />
-              <Toggle on={search} set={setSearch} icon={<GlobeIcon className="h-3.5 w-3.5" />} label="Веб-пошук" />
+              <Toggle on={thinking} set={setThinking} icon={<BrainIcon className="h-3.5 w-3.5" />} label="Think" />
+              <Toggle on={search} set={setSearch} icon={<GlobeIcon className="h-3.5 w-3.5" />} label="Web search" />
               <Toggle on={deep} set={setDeep} icon={<SearchIcon className="h-3.5 w-3.5" />} label="Deep Research" />
               {busy ? (
                 <button
                   onClick={stop}
                   className="ml-1 flex h-9 w-9 items-center justify-center rounded-xl bg-coral/15 text-coral transition-all hover:bg-coral/25"
-                  title="Зупинити генерацію"
+                  title="Stop generating"
                 >
                   <StopIcon className="h-4 w-4" />
                 </button>
@@ -244,8 +245,8 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
                 <button
                   onClick={() => send()}
                   disabled={!input.trim()}
-                  className="btn-brand ml-1 flex h-9 w-9 items-center justify-center rounded-xl text-white disabled:opacity-35 disabled:saturate-50"
-                  title="Надіслати (Enter)"
+                  className="btn-brand ml-1 flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-35 disabled:saturate-50"
+                  title="Send (Enter)"
                 >
                   <SendIcon className="h-4 w-4" />
                 </button>
@@ -256,7 +257,7 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
         <p className="mt-2 text-center font-mono text-[10.5px] text-faint">
           {cfgs[model.providerId]?.key?.trim()
             ? `live · ${provider.name} · ${model.apiId}`
-            : "демо-режим — додай ключ у ⚙ Налаштуваннях, і відповідатиме справжня модель"}
+            : "demo mode — add an API key in Settings to answer with the real model"}
         </p>
       </div>
     </div>
@@ -268,7 +269,7 @@ function Toggle({ on, set, icon, label }: { on: boolean; set: (v: boolean) => vo
     <button
       onClick={() => set(!on)}
       className={`hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition-all md:flex ${
-        on ? "border-violet/55 bg-violet/14 text-violet2" : "border-line text-dim hover:border-line2 hover:text-text"
+        on ? "border-aqua/55 bg-aqua/12 text-aqua2" : "border-line text-dim hover:border-line2 hover:text-text"
       }`}
       title={label}
     >
@@ -298,16 +299,16 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
   return (
     <div className="anim-rise group mb-7 flex gap-3">
       <div className="mt-0.5 shrink-0">
-        <Star className="h-6 w-6" />
+        <BrandMark className="h-6 w-6" />
       </div>
       <div className="min-w-0 flex-1">
         {think && (
           <button
             onClick={() => setShowThink((v) => !v)}
-            className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5 font-mono text-[11px] text-violet2 transition-colors hover:border-violet/40"
+            className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5 font-mono text-[11px] text-aqua2 transition-colors hover:border-aqua/40"
           >
             <BrainIcon className="h-3.5 w-3.5" />
-            {showThink ? "сховати роздуми" : "роздуми моделі"}
+            {showThink ? "hide reasoning" : "model reasoning"}
             <span className={`transition-transform ${showThink ? "rotate-180" : ""}`}>▾</span>
           </button>
         )}
@@ -318,7 +319,7 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
         )}
         <Markdown src={m.content || ""} />
         {streaming && !m.content && (
-          <span className="mt-1 flex items-center gap-1.5 text-violet2">
+          <span className="mt-1 flex items-center gap-1.5 text-aqua">
             <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
             <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
             <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
@@ -330,11 +331,11 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
           <div className="mt-2.5 flex items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
             {m.demo && (
               <span className="rounded border border-solar/40 bg-solar/10 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-solar">
-                демо
+                demo
               </span>
             )}
             <span className="font-mono text-[10.5px] text-faint">
-              {modelById.get(m.modelId ?? "")?.name ?? "модель"} · ~{m.tokens ?? "—"} токенів
+              {modelById.get(m.modelId ?? "")?.name ?? "model"} · ~{m.tokens ?? "—"} tokens
             </span>
             <button
               onClick={() => {
@@ -342,10 +343,10 @@ function MessageRow({ m, busy, isLast }: { m: ChatMessage; busy: boolean; isLast
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1300);
               }}
-              className="flex items-center gap-1 font-mono text-[10.5px] text-dim transition-colors hover:text-violet2"
+              className="flex items-center gap-1 font-mono text-[10.5px] text-dim transition-colors hover:text-aqua2"
             >
               {copied ? <CheckIcon className="h-3 w-3 text-mint" /> : <CopyIcon className="h-3 w-3" />}
-              {copied ? "скопійовано" : "копіювати"}
+              {copied ? "copied" : "copy"}
             </button>
           </div>
         )}

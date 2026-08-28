@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 
-/* Компактний markdown-рендерер: заголовки, списки, цитати, жирний/курсив,
-   інлайн-код, посилання та блоки коду з кнопкою копіювання. */
+/* Compact markdown renderer: headings, lists, quotes, bold/italic,
+   inline code, links and code blocks with a copy button. */
 
 function inline(text: string, keyBase: string): ReactNode[] {
   const parts: ReactNode[] = [];
@@ -46,7 +46,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
           }}
           className="font-mono text-[11px] text-dim transition-colors hover:text-ember"
         >
-          {copied ? "✓ скопійовано" : "копіювати"}
+          {copied ? "✓ copied" : "copy"}
         </button>
       </span>
       <code>{code.replace(/\n$/, "")}</code>
