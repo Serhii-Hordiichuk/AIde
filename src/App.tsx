@@ -58,7 +58,7 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(() => load<string | null>("activeProject", null));
   const [showSettings, setShowSettings] = useState(false);
 
-  /* qwen-style per-item kebab menu + inline rename + delete modal */
+  /* per-item kebab menu + inline rename + delete modal */
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");

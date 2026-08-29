@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="https://image.qwenlm.ai/generated-images/132de775-d892-4a5e-93b5-e94af1a15f0e/_result.png" alt="AiDe — AI Studio & Coder" width="640" />
-</p>
-
-<h1 align="center">AiDe <em>— AI-native studio & coder</em></h1>
+<h1 align="center">
+  <code>&gt;_</code> AiDe <em>— AI-native studio &amp; coder</em>
+</h1>
 
 <p align="center">
   Chat with free LLM providers · scaffold working web apps from a single sentence<br/>
@@ -52,8 +50,8 @@
 ## Quick start
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/aide-studio.git
-cd aide-studio
+git clone https://github.com/Serhii-Hordiichuk/AIde.git
+cd AIde
 npm install
 npm run dev        # http://localhost:5173
 ```
@@ -111,12 +109,11 @@ on any domain.
 
 ```
 src/
-├── App.tsx                  sidebar · mode switch · settings modal · status bar
+├── App.tsx                  collapsible sidebar · mode switch · settings modal
 ├── components/
 │   ├── ChatMode.tsx         streaming chat, stop/regen, reasoning/search modes
 │   ├── CoderMode.tsx        task board · file tree · preview iframe · terminal
 │   ├── ModelPicker.tsx      grouped catalog + Auto Free / Auto Local routing
-│   ├── StatusBar.tsx        IDE-style session strip
 │   └── Icons.tsx            inline SVG set + brand mark / wordmark
 ├── data/
 │   ├── providers.ts         15 free providers (keyless · free tier · local)
