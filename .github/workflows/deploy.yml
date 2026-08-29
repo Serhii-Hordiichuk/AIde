@@ -5,6 +5,7 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+# pages: write дозволяє воркфлоу САМОМУ увімкнути Pages при першому запуску
 permissions:
   contents: read
   pages: write
@@ -12,7 +13,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -24,19 +25,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      # Relative base → the site works on username.github.io/repo,
-      # on a root domain, and on any custom domain without changes.
-      - name: Build
+      - name: Build (relative base — works on any Pages URL)
         run: npx vite build --base=./
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
@@ -47,6 +46,34 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
+      # Якщо Pages ще не увімкнено — вмикаємо його автоматично (одноразово).
+      # Потрібно, щоб у Settings → Actions → Workflow permissions стояло
+      # "Read and write permissions" (на особистих акаунтах це дефолт).
+      - name: Ensure GitHub Pages is enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REPO="${{ github.repository }}"
+          BUILD_TYPE=$(gh api "repos/$REPO/pages" --jq ".build_type" 2>/dev/null || echo "")
+
+          case "$BUILD_TYPE" in
+            workflow)
+              echo "✓ GitHub Pages already uses GitHub Actions"
+              ;;
+            legacy)
+              echo "Switching Pages to GitHub Actions source…"
+              gh api -X PUT "repos/$REPO/pages" -f build_type=workflow
+              ;;
+            *)
+              echo "GitHub Pages not enabled — enabling via API…"
+              if ! gh api -X POST "repos/$REPO/pages" -f build_type=workflow; then
+                echo "::error::Couldn't enable Pages automatically."
+                echo "::error::Do it once manually: Settings → Pages → Build and deployment → Source → GitHub Actions"
+                exit 1
+              fi
+              ;;
+          esac
+
+      - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

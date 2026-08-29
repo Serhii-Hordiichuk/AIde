@@ -67,23 +67,30 @@ npm run preview    # serve the build locally
 
 ## Deploy to GitHub Pages
 
-### Option A — GitHub Actions (recommended)
+### Option A — GitHub Actions (recommended, zero config)
 
-1. Create a repository (e.g. `aide-studio`) and push this project:
+1. Create a repository (e.g. `AIde`) and push this project:
 
    ```bash
    git init
    git add .
    git commit -m "aide studio"
    git branch -M main
-   git remote add origin https://github.com/YOUR-USERNAME/aide-studio.git
+   git remote add origin https://github.com/YOUR-USERNAME/AIde.git
    git push -u origin main
    ```
 
-2. In the repo: **Settings → Pages → Build and deployment → Source → GitHub Actions**.
-3. The bundled workflow (`.github/workflows/deploy.yml`) builds with a **relative base**
-   (`npx vite build --base=./`) and publishes `dist/` — your site goes live at
-   `https://YOUR-USERNAME.github.io/aide-studio/` on every push.
+2. That's it. The bundled workflow (`.github/workflows/deploy.yml`) **enables GitHub
+   Pages automatically** via the API on the first run (`build_type: workflow`), builds
+   with a relative base (`npx vite build --base=./`) and publishes `dist/`. Your site
+   goes live at `https://YOUR-USERNAME.github.io/AIde/` on every push.
+
+   > If the auto-enable step fails (restricted org policy), enable it once manually:
+   > **Settings → Pages → Build and deployment → Source → GitHub Actions**,
+   > then re-run the workflow from the **Actions** tab.
+   >
+   > Also make sure **Settings → Actions → General → Workflow permissions** is set to
+   > **Read and write permissions**.
 
 ### Option B — manual `gh-pages` branch
 
