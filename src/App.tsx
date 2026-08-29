@@ -387,15 +387,83 @@ export default function App() {
     </div>
   );
 
+  /* ---------- collapsed icon rail (desktop) ---------- */
+  const rail = (
+    <div className="flex h-full w-[60px] flex-col items-center bg-panel py-4">
+      <button
+        onClick={() => setSideOpen(true)}
+        className="icon-btn"
+        title="Expand sidebar"
+        aria-label="Expand sidebar"
+      >
+        <PanelLeftIcon className="h-4 w-4" />
+      </button>
+      <button onClick={handleNew} className="icon-btn mt-1.5" title="New chat" aria-label="New chat">
+        <PlusIcon className="h-4 w-4 text-violet2" />
+      </button>
+
+      <div className="my-3 h-px w-7 bg-line2" />
+
+      <div className="min-h-0 w-full flex-1 space-y-1.5 overflow-y-auto px-3">
+        {convs.map((c) => {
+          const isActive = active?.id === c.id && mode === "chat";
+          const letter = (c.title || "").trim().charAt(0).toUpperCase();
+          return (
+            <button
+              key={c.id}
+              onClick={() => openChat(c.id)}
+              title={c.title || "New chat"}
+              aria-label={c.title || "New chat"}
+              className={`mx-auto flex h-9 w-9 items-center justify-center rounded-xl border text-[12px] font-extrabold transition-all ${
+                isActive
+                  ? "border-violet/50 bg-violet/15 text-violet2"
+                  : "border-transparent text-dim hover:border-line hover:bg-panel2 hover:text-text"
+              }`}
+            >
+              {letter || <ChatIcon className="h-4 w-4" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {projects.length > 0 && (
+        <>
+          <div className="my-3 h-px w-7 bg-line2" />
+          <button
+            onClick={() => openProject(activeProjectId ?? projects[0].id)}
+            title="Open Coder"
+            aria-label="Open Coder"
+            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${
+              mode === "coder"
+                ? "border-violet/50 bg-violet/15 text-violet2"
+                : "border-transparent text-dim hover:border-line hover:bg-panel2 hover:text-text"
+            }`}
+          >
+            <CodeIcon className="h-4 w-4" />
+          </button>
+        </>
+      )}
+
+      <button
+        onClick={openSettings}
+        title="Settings"
+        aria-label="Settings"
+        className="mt-3 flex h-9 w-9 items-center justify-center rounded-full bg-violet/18 text-[12px] font-extrabold text-violet3 transition-all hover:bg-violet/28"
+      >
+        A
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex h-dvh overflow-hidden bg-bg">
-      {/* desktop sidebar — animated collapse */}
+      {/* desktop sidebar — full panel or icon rail */}
       <aside
-        className={`hidden shrink-0 overflow-hidden border-r border-line transition-[width,border-color] duration-200 ease-out md:block ${
-          sideOpen ? "w-[260px]" : "w-0 border-r-transparent"
+        className={`hidden shrink-0 overflow-hidden border-r border-line transition-[width] duration-200 ease-out md:block ${
+          sideOpen ? "w-[260px]" : "w-[60px]"
         }`}
       >
-        {sidebar(false)}
+        <div className="h-full">{sideOpen ? sidebar(false) : rail}</div>
       </aside>
 
       {/* mobile drawer */}
@@ -412,16 +480,6 @@ export default function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         {/* top bar */}
         <header className="flex h-[54px] shrink-0 items-center gap-1.5 px-3.5">
-          {!sideOpen && (
-            <button
-              onClick={() => setSideOpen(true)}
-              className="icon-btn max-md:hidden"
-              title="Open sidebar"
-              aria-label="Open sidebar"
-            >
-              <SidebarIcon className="h-4 w-4" />
-            </button>
-          )}
           <button
             onClick={() => setMobileSide(true)}
             className="icon-btn md:hidden"
