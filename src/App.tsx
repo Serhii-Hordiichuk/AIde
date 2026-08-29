@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PROVIDERS, providerById, KIND_LABEL } from "./data/providers";
 import { DEFAULT_MODEL_ID } from "./data/models";
 import {
@@ -21,7 +21,9 @@ function fmtTok(n: number): string {
   return String(n);
 }
 
-function groupLabel(ts: number): string {
+const GROUP_ORDER = ["Today", "Yesterday", "Previous"] as const;
+
+function groupLabel(ts: number): (typeof GROUP_ORDER)[number] {
   const d = new Date(ts);
   const now = new Date();
   const day = (x: Date) => x.toDateString();
@@ -59,6 +61,8 @@ export default function App() {
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [confirmDelProj, setConfirmDelProj] = useState<string | null>(null);
 
+  const drawerCloseRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => save("convs", convs), [convs]);
   useEffect(() => save("active", activeId), [activeId]);
   useEffect(() => save("model", modelId), [modelId]);
@@ -68,9 +72,40 @@ export default function App() {
   useEffect(() => save("mode", mode), [mode]);
   useEffect(() => save("sideOpen", sideOpen), [sideOpen]);
 
+  /* keep active id valid */
   useEffect(() => {
     if (!convs.some((c) => c.id === activeId)) setActiveId(convs[0]?.id ?? "");
   }, [convs, activeId]);
+
+  /* Escape: settings → drawer → delete confirms */
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (showSettings) setShowSettings(false);
+      else if (mobileSide) setMobileSide(false);
+      else if (confirmDel || confirmDelProj) {
+        setConfirmDel(null);
+        setConfirmDelProj(null);
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [showSettings, mobileSide, confirmDel, confirmDelProj]);
+
+  /* auto-dismiss delete confirmations */
+  useEffect(() => {
+    if (!confirmDel && !confirmDelProj) return;
+    const t = setTimeout(() => {
+      setConfirmDel(null);
+      setConfirmDelProj(null);
+    }, 2600);
+    return () => clearTimeout(t);
+  }, [confirmDel, confirmDelProj]);
+
+  /* focus the close button when the drawer opens */
+  useEffect(() => {
+    if (mobileSide) requestAnimationFrame(() => drawerCloseRef.current?.focus());
+  }, [mobileSide]);
 
   const active = convs.find((c) => c.id === activeId) ?? convs[0];
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
@@ -79,13 +114,18 @@ export default function App() {
     setConvs((prev) => prev.map((c) => (c.id === id ? fn(c) : c)));
   }, []);
 
+  /* New chat: don't spawn duplicates when the current chat is still empty */
   const handleNew = useCallback(() => {
+    setMode("chat");
+    setMobileSide(false);
+    if (active && active.messages.length === 0) {
+      setActiveId(active.id);
+      return;
+    }
     const c = newConversation();
     setConvs((prev) => [c, ...prev]);
     setActiveId(c.id);
-    setMode("chat");
-    setMobileSide(false);
-  }, []);
+  }, [active]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -113,6 +153,7 @@ export default function App() {
     setProjects((prev) => [p, ...prev]);
     setActiveProjectId(p.id);
     setMode("coder");
+    setMobileSide(false);
     return p.id;
   }, []);
 
@@ -129,39 +170,56 @@ export default function App() {
     [activeProjectId]
   );
 
-  const groups: { label: string; items: Conversation[] }[] = [];
-  for (const c of convs) {
-    const g = groupLabel(c.createdAt);
-    const last = groups[groups.length - 1];
-    if (last && last.label === g) last.items.push(c);
-    else groups.push({ label: g, items: [c] });
-  }
-
   const openProject = (id: string) => {
     setActiveProjectId(id);
     setMode("coder");
     setMobileSide(false);
   };
 
-  const sidebar = (
-    <div className="flex h-full w-[260px] flex-col bg-panel max-md:w-[280px]">
+  const openChat = (id: string) => {
+    setActiveId(id);
+    setMode("chat");
+    setMobileSide(false);
+  };
+
+  const openSettings = () => {
+    setShowSettings(true);
+    setMobileSide(false);
+  };
+
+  /* deterministic buckets: Today → Yesterday → Previous */
+  const groups = GROUP_ORDER.map((label) => ({
+    label,
+    items: convs.filter((c) => groupLabel(c.createdAt) === label),
+  })).filter((g) => g.items.length > 0);
+
+  /* ---------- shared sidebar content ---------- */
+  const sidebar = (isDrawer: boolean) => (
+    <div className={`flex h-full flex-col bg-panel ${isDrawer ? "w-[280px]" : "w-[260px]"}`}>
       {/* header */}
       <div className="flex items-center gap-2.5 px-4 py-4">
-        <BrandMark className="h-8 w-8" />
-        <Wordmark className="text-[17px]" />
-        <button
-          onClick={() => {
-            setSideOpen(false);
-            setMobileSide(false);
-          }}
-          className="icon-btn ml-auto max-md:hidden"
-          title="Collapse sidebar"
-        >
-          <PanelLeftIcon className="h-4 w-4" />
-        </button>
-        <button onClick={() => setMobileSide(false)} className="icon-btn ml-auto md:hidden" title="Close">
-          <XIcon className="h-4 w-4" />
-        </button>
+        <BrandMark className="h-8 w-8 shrink-0" />
+        <Wordmark className="min-w-0 truncate text-[17px]" />
+        {isDrawer ? (
+          <button
+            ref={drawerCloseRef}
+            onClick={() => setMobileSide(false)}
+            className="icon-btn ml-auto"
+            title="Close menu"
+            aria-label="Close menu"
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setSideOpen(false)}
+            className="icon-btn ml-auto"
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftIcon className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* new chat */}
@@ -175,8 +233,11 @@ export default function App() {
         </button>
       </div>
 
-      {/* history */}
-      <div className="mt-4 flex-1 overflow-y-auto px-3 pb-3">
+      {/* history + projects */}
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        {groups.length === 0 && (
+          <p className="px-2 py-1 font-mono text-[10.5px] text-faint">no chats yet</p>
+        )}
         {groups.map((g) => (
           <div key={g.label} className="mb-3">
             <p className="px-2 pb-1.5 text-[11px] font-bold text-faint">{g.label}</p>
@@ -186,12 +247,14 @@ export default function App() {
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => {
-                      setActiveId(c.id);
-                      setMode("chat");
-                      setMobileSide(false);
+                    onClick={() => openChat(c.id)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openChat(c.id);
+                      }
                     }}
-                    onKeyDown={(e) => e.key === "Enter" && (setActiveId(c.id), setMode("chat"))}
                     className={`group relative flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition-all ${
                       active?.id === c.id && mode === "chat"
                         ? "bg-panel3 font-semibold text-text"
@@ -205,8 +268,7 @@ export default function App() {
                           e.stopPropagation();
                           handleDelete(c.id);
                         }}
-                        onMouseLeave={() => setConfirmDel(null)}
-                        className="rounded-md bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
+                        className="shrink-0 rounded-md bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
                       >
                         del?
                       </button>
@@ -214,12 +276,14 @@ export default function App() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          setConfirmDelProj(null);
                           setConfirmDel(c.id);
                         }}
-                        className="opacity-0 transition-opacity group-hover:opacity-100"
-                        title="Delete"
+                        className="shrink-0 rounded-md p-0.5 opacity-0 transition-opacity hover:bg-panel3 focus-visible:opacity-100 group-hover:opacity-100"
+                        title="Delete chat"
+                        aria-label={`Delete ${c.title || "chat"}`}
                       >
-                        <TrashIcon className="h-3.5 w-3.5 text-faint hover:text-coral" />
+                        <TrashIcon className="h-3.5 w-3.5 text-faint transition-colors hover:text-coral" />
                       </button>
                     )}
                   </div>
@@ -238,6 +302,7 @@ export default function App() {
               setMobileSide(false);
             }}
             className="rounded-md border border-line px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-faint transition-colors hover:border-violet/50 hover:text-violet2"
+            title="Open Coder"
           >
             coder
           </button>
@@ -252,7 +317,13 @@ export default function App() {
                   role="button"
                   tabIndex={0}
                   onClick={() => openProject(p.id)}
-                  onKeyDown={(e) => e.key === "Enter" && openProject(p.id)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openProject(p.id);
+                    }
+                  }}
                   className={`group relative flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition-all ${
                     activeProjectId === p.id && mode === "coder"
                       ? "bg-panel3 font-semibold text-text"
@@ -260,15 +331,19 @@ export default function App() {
                   }`}
                 >
                   <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${p.status === "ready" ? "bg-mint" : "bg-gold"}`} />
+                  <span
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      p.status === "ready" ? "bg-mint" : "animate-pulse bg-gold"
+                    }`}
+                    title={p.status === "ready" ? "Ready" : "Building"}
+                  />
                   {confirmDelProj === p.id ? (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteProject(p.id);
                       }}
-                      onMouseLeave={() => setConfirmDelProj(null)}
-                      className="rounded-md bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
+                      className="shrink-0 rounded-md bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
                     >
                       del?
                     </button>
@@ -276,12 +351,14 @@ export default function App() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        setConfirmDel(null);
                         setConfirmDelProj(p.id);
                       }}
-                      className="opacity-0 transition-opacity group-hover:opacity-100"
-                      title="Delete"
+                      className="shrink-0 rounded-md p-0.5 opacity-0 transition-opacity hover:bg-panel3 focus-visible:opacity-100 group-hover:opacity-100"
+                      title="Delete project"
+                      aria-label={`Delete ${p.name}`}
                     >
-                      <TrashIcon className="h-3.5 w-3.5 text-faint hover:text-coral" />
+                      <TrashIcon className="h-3.5 w-3.5 text-faint transition-colors hover:text-coral" />
                     </button>
                   )}
                 </div>
@@ -292,52 +369,65 @@ export default function App() {
       </div>
 
       {/* footer */}
-      <div className="flex items-center gap-2.5 border-t border-line px-4 py-3.5">
+      <div className="border-t border-line p-3">
         <button
-          onClick={() => setShowSettings(true)}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-violet/18 text-[12px] font-extrabold text-violet3 transition-all hover:bg-violet/28"
-          title="Settings"
+          onClick={openSettings}
+          className="row-hl flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors"
+          title="Provider settings"
         >
-          A
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet/18 text-[12px] font-extrabold text-violet3">
+            A
+          </span>
+          <span className="flex-1 text-[13px] font-bold text-dim transition-colors group-hover:text-text">
+            Settings
+          </span>
+          <GearIcon className="h-4 w-4 text-faint" />
         </button>
-        <button
-          onClick={() => setShowSettings(true)}
-          className="row-hl flex flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left text-[13px] font-bold text-dim hover:text-text"
-        >
-          Settings
-        </button>
-        <GearIcon className="h-4 w-4 text-faint" />
       </div>
     </div>
   );
 
   return (
     <div className="flex h-dvh overflow-hidden bg-bg">
-      {/* desktop sidebar */}
-      {sideOpen && (
-        <aside className="shrink-0 border-r border-line max-md:hidden">
-          <div className="h-full">{sidebar}</div>
-        </aside>
-      )}
+      {/* desktop sidebar — animated collapse */}
+      <aside
+        className={`hidden shrink-0 overflow-hidden border-r border-line transition-[width,border-color] duration-200 ease-out md:block ${
+          sideOpen ? "w-[260px]" : "w-0 border-r-transparent"
+        }`}
+      >
+        {sidebar(false)}
+      </aside>
 
-      {/* mobile sidebar */}
+      {/* mobile drawer */}
       {mobileSide && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div className="absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={() => setMobileSide(false)} />
-          <div className="anim-rise absolute left-0 top-0 h-full border-r border-line">{sidebar}</div>
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+          <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={() => setMobileSide(false)} />
+          <div className="drawer-in absolute left-0 top-0 h-full border-r border-line shadow-2xl">
+            {sidebar(true)}
+          </div>
         </div>
       )}
 
       {/* main */}
       <main className="flex min-w-0 flex-1 flex-col">
         {/* top bar */}
-        <header className="flex h-[54px] shrink-0 items-center gap-2 px-3.5">
+        <header className="flex h-[54px] shrink-0 items-center gap-1.5 px-3.5">
           {!sideOpen && (
-            <button onClick={() => setSideOpen(true)} className="icon-btn max-md:hidden" title="Open sidebar">
+            <button
+              onClick={() => setSideOpen(true)}
+              className="icon-btn max-md:hidden"
+              title="Open sidebar"
+              aria-label="Open sidebar"
+            >
               <SidebarIcon className="h-4 w-4" />
             </button>
           )}
-          <button onClick={() => setMobileSide(true)} className="icon-btn md:hidden" title="Menu">
+          <button
+            onClick={() => setMobileSide(true)}
+            className="icon-btn md:hidden"
+            title="Open menu"
+            aria-label="Open menu"
+          >
             <SidebarIcon className="h-4 w-4" />
           </button>
 
@@ -356,6 +446,7 @@ export default function App() {
                 className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-extrabold transition-all ${
                   mode === m.id ? "bg-panel3 text-text shadow-sm" : "text-faint hover:text-dim"
                 }`}
+                aria-pressed={mode === m.id}
               >
                 <m.icon className="h-3.5 w-3.5" />
                 <span className="max-sm:hidden">{m.label}</span>
@@ -366,7 +457,9 @@ export default function App() {
 
         <div className="min-h-0 flex-1">
           {mode === "chat" ? (
-            <ChatMode conv={active} patchConv={patchConv} cfgs={cfgs} modelId={modelId} onModel={setModelId} />
+            active && (
+              <ChatMode conv={active} patchConv={patchConv} cfgs={cfgs} modelId={modelId} onModel={setModelId} />
+            )
           ) : (
             <CoderMode
               project={activeProject}
@@ -378,7 +471,7 @@ export default function App() {
           )}
         </div>
 
-        {mode === "chat" && active.messages.length > 0 && (
+        {mode === "chat" && active && active.messages.length > 0 && (
           <div className="pointer-events-none pb-2 text-center font-mono text-[10px] text-faint">
             ≈ {fmtTok(active.messages.reduce((s, m) => s + (m.tokens ?? 0), 0))} tokens · free models only
           </div>
@@ -424,8 +517,8 @@ function SettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal>
-      <div className="anim-rise absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={onClose} />
       <div className="anim-rise relative flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-[0_30px_90px_-20px_rgba(0,0,0,0.8)]">
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
           <KeyIcon className="h-4.5 w-4.5 text-violet2" />
@@ -433,7 +526,7 @@ function SettingsModal({
             <h2 className="font-display text-[15px] font-bold">Providers</h2>
             <p className="font-mono text-[10.5px] text-faint">all free · keys stay in your browser</p>
           </div>
-          <button onClick={onClose} className="icon-btn ml-auto" title="Close">
+          <button onClick={onClose} className="icon-btn ml-auto" title="Close" aria-label="Close settings">
             <XIcon className="h-4 w-4" />
           </button>
         </div>
