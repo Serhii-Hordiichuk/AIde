@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { modelById, MODELS, isAutoModel, resolveAutoModel } from "../data/models";
+import { getModelInfo, isAutoModel, resolveAutoModel } from "../data/models";
+import type { LiveCatalog } from "../lib/modelFetch";
 import { providerById, PROVIDERS } from "../data/providers";
 import { scaffoldProject, generateProjectWithLLM, buildPreviewDoc, CODER_SUGGESTIONS } from "../lib/engine";
 import { ROLES, buildPlan, buildLLMPlan, uniqueRoles, type Subtask } from "../lib/plan";
@@ -17,6 +18,7 @@ interface Props {
   createProject: (prompt: string) => string;
   cfgs: Record<string, ProviderCfg>;
   modelId: string;
+  catalog: LiveCatalog;
 }
 
 const COLOR_WORDS: Record<string, string> = {
@@ -36,7 +38,7 @@ const ROLE_TERM: Record<string, string> = {
   QA: "text-[#ff8a5c]",
 };
 
-export default function CoderMode({ project, patchProject, createProject, cfgs, modelId }: Props) {
+export default function CoderMode({ project, patchProject, createProject, cfgs, modelId, catalog }: Props) {
   const [prompt, setPrompt] = useState("");
   const [follow, setFollow] = useState("");
   const [tab, setTab] = useState<Tab>("code");
@@ -47,7 +49,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
   const termRef = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
-  const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
+  const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs, catalog) : getModelInfo(modelId);
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
 
   const log = (line: string) => setTerm((t) => [...t, line]);

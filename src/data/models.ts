@@ -1,4 +1,4 @@
-import { providerById } from "./providers";
+import { PROVIDERS, providerById } from "./providers";
 
 export interface ModelInfo {
   id: string;
@@ -17,46 +17,32 @@ export interface ModelInfo {
   tags: string[];
 }
 
-/* Everything below is free: keyless cloud, free tiers, or local runtimes. */
-export const MODELS: ModelInfo[] = [
-  // Pollinations — keyless, works out of the box
-  { id: "pplx-openai", name: "GPT-4o mini · Pollinations", providerId: "pollinations", apiId: "openai", ctx: 128, priceIn: 0, priceOut: 0, tags: ["keyless", "general"] },
-  { id: "pplx-llama", name: "Llama 3.3 70B · Pollinations", providerId: "pollinations", apiId: "llama", ctx: 128, priceIn: 0, priceOut: 0, open: true, tags: ["keyless", "code"] },
-  { id: "pplx-mistral", name: "Mistral Small · Pollinations", providerId: "pollinations", apiId: "mistral", ctx: 32, priceIn: 0, priceOut: 0, open: true, tags: ["keyless", "fast"] },
-  { id: "pplx-r1", name: "DeepSeek-R1 · Pollinations", providerId: "pollinations", apiId: "deepseek-r1", ctx: 64, priceIn: 0, priceOut: 0, reasoning: true, open: true, tags: ["keyless", "reasoning"] },
-  // Google AI Studio — free tier
-  { id: "gemini-2-5-flash", name: "Gemini 2.5 Flash", providerId: "google", apiId: "gemini-2.5-flash", ctx: 1048, priceIn: 0, priceOut: 0, reasoning: true, vision: true, tags: ["free tier", "1M ctx"] },
-  { id: "gemini-2-5-flash-lite", name: "Gemini 2.5 Flash-Lite", providerId: "google", apiId: "gemini-2.5-flash-lite", ctx: 1048, priceIn: 0, priceOut: 0, vision: true, tags: ["free tier", "fast"] },
-  // OpenRouter — :free models
-  { id: "or-llama-free", name: "Llama 3.3 70B · OpenRouter", providerId: "openrouter", apiId: "meta-llama/llama-3.3-70b-instruct:free", ctx: 128, priceIn: 0, priceOut: 0, open: true, tags: ["free tier"] },
-  { id: "or-r1-free", name: "DeepSeek-R1 · OpenRouter", providerId: "openrouter", apiId: "deepseek/deepseek-r1:free", ctx: 160, priceIn: 0, priceOut: 0, reasoning: true, open: true, tags: ["free tier", "reasoning"] },
-  // Groq — free tier
-  { id: "llama-3-3-70b-groq", name: "Llama 3.3 70B · Groq", providerId: "groq", apiId: "llama-3.3-70b-versatile", ctx: 128, priceIn: 0, priceOut: 0, open: true, tags: ["free tier", "500+ tok/s"] },
-  { id: "gpt-oss-120b-groq", name: "GPT-OSS 120B · Groq", providerId: "groq", apiId: "openai/gpt-oss-120b", ctx: 128, priceIn: 0, priceOut: 0, reasoning: true, open: true, tags: ["free tier", "reasoning"] },
-  // Cerebras — free tier
-  { id: "llama-3-3-70b-cerebras", name: "Llama 3.3 70B · Cerebras", providerId: "cerebras", apiId: "llama-3.3-70b", ctx: 128, priceIn: 0, priceOut: 0, open: true, tags: ["free tier", "fast"] },
-  { id: "llama-8b-cerebras", name: "Llama 3.1 8B · Cerebras", providerId: "cerebras", apiId: "llama3.1-8b", ctx: 128, priceIn: 0, priceOut: 0, open: true, tags: ["free tier", "1000+ tok/s"] },
-  // SambaNova — free tier
-  { id: "llama-4-samba", name: "Llama 4 Maverick · SambaNova", providerId: "sambanova", apiId: "Llama-4-Maverick-17B-128E-Instruct", ctx: 131, priceIn: 0, priceOut: 0, open: true, tags: ["free tier", "MoE"] },
-  // Hugging Face — free inference
-  { id: "deepseek-r1-hf", name: "DeepSeek-R1 · HF", providerId: "huggingface", apiId: "deepseek-ai/DeepSeek-R1", ctx: 128, priceIn: 0, priceOut: 0, reasoning: true, open: true, tags: ["free tier", "reasoning"] },
-  { id: "llama-4-scout-hf", name: "Llama 4 Scout · HF", providerId: "huggingface", apiId: "meta-llama/Llama-4-Scout-17B-16E-Instruct", ctx: 128, priceIn: 0, priceOut: 0, vision: true, open: true, tags: ["free tier", "MoE"] },
-  // Local runtimes
-  { id: "ollama-deepseek-coder", name: "DeepSeek Coder V2 16B", providerId: "ollama", apiId: "deepseek-coder-v2:16b", ctx: 128, priceIn: null, priceOut: null, open: true, tags: ["code", "local"] },
-  { id: "ollama-llama", name: "Llama 3.1 8B", providerId: "ollama", apiId: "llama3.1:8b", ctx: 128, priceIn: null, priceOut: null, open: true, tags: ["local"] },
-  { id: "ollama-r1", name: "DeepSeek-R1 14B", providerId: "ollama", apiId: "deepseek-r1:14b", ctx: 128, priceIn: null, priceOut: null, reasoning: true, open: true, tags: ["reasoning", "local"] },
-  { id: "ollama-nemo", name: "Mistral Nemo 12B", providerId: "ollama", apiId: "mistral-nemo:12b", ctx: 128, priceIn: null, priceOut: null, open: true, tags: ["local"] },
-  { id: "lmstudio-model", name: "LM Studio model", providerId: "lmstudio", apiId: "local-model", ctx: 128, priceIn: null, priceOut: null, open: true, tags: ["GGUF", "local"] },
-  { id: "vllm-model", name: "vLLM model", providerId: "vllm", apiId: "local-model", ctx: 128, priceIn: null, priceOut: null, open: true, tags: ["production", "local"] },
-  { id: "llamacpp-model", name: "llama.cpp model", providerId: "llamacpp", apiId: "local-model", ctx: 128, priceIn: null, priceOut: null, open: true, tags: ["GGUF", "CPU"] },
-  { id: "localai-model", name: "LocalAI model", providerId: "localai", apiId: "local-model", ctx: 128, priceIn: null, priceOut: null, open: true, tags: ["docker", "local"] },
-  { id: "kobold-model", name: "KoboldCPP model", providerId: "kobold", apiId: "local-model", ctx: 128, priceIn: null, priceOut: null, open: true, tags: ["GGUF", "local"] },
-];
+/* No hardcoded models. The catalog is discovered live from each provider's
+   /models endpoint (see lib/modelFetch.ts), so nothing here can go stale.
+   The keyless fallback below guarantees the app works with zero config. */
+export const MODELS: ModelInfo[] = [];
+
+/** Always-available keyless fallback (Pollinations needs no key). */
+export const FALLBACK_MODEL = syntheticModelSafe("pollinations", "openai");
+
+function syntheticModelSafe(providerId: string, apiId: string): ModelInfo {
+  return {
+    id: `dyn:${providerId}:${apiId}`,
+    name: `${apiId} · ${providerId}`,
+    providerId,
+    apiId,
+    ctx: 128,
+    priceIn: 0,
+    priceOut: 0,
+    open: true,
+    tags: ["keyless", "fallback"],
+  };
+}
 
 export const modelById = new Map(MODELS.map((m) => [m.id, m]));
 
 /** Keyless by default — the app is fully functional with zero configuration. */
-export const DEFAULT_MODEL_ID = "pplx-openai";
+export const DEFAULT_MODEL_ID = "auto-free";
 
 export function fmtPrice(m: ModelInfo): string {
   if (m.priceIn === null) return "local · $0";
@@ -121,33 +107,33 @@ export function syntheticModel(providerId: string, apiId: string): ModelInfo {
   };
 }
 
-/** Registry first, then live models, then a safe default. */
+/** Resolves any model id (including live "dyn:" ids) to a ModelInfo. */
 export function getModelInfo(id: string): ModelInfo {
   const reg = modelById.get(id);
   if (reg) return reg;
   const dyn = parseDynId(id);
   if (dyn) return syntheticModel(dyn.providerId, dyn.apiId);
-  return MODELS[0];
+  return FALLBACK_MODEL;
 }
 
+export const LOCAL_PROVIDER_IDS = [...LOCAL_PROVIDERS];
+
 /**
- * Resolves a virtual routing model to a concrete one.
- * Live catalogs (fetched from provider APIs) take priority over the built-in registry:
- *  - auto-free  → first live model of a keyed/keyless cloud provider, else registry free models
- *  - auto-local → first live model of a reachable local runtime, else registry local models
+ * Resolves a virtual routing model to a concrete one, using ONLY live catalogs
+ * fetched from provider APIs (nothing stale can leak in):
+ *  - auto-free  → first live model of a provider with a key, else a keyless provider
+ *  - auto-local → first live model of a reachable local runtime
+ * Always returns something usable (keyless Pollinations as the last resort).
  */
 export function resolveAutoModel(
   id: string,
   cfgs: Record<string, Cfg> | undefined,
-  live?: Record<string, string[]>
+  live?: { [pid: string]: { models: string[] } | undefined }
 ): ModelInfo {
   const hasKey = (pid: string) => !!cfgs?.[pid]?.key?.trim();
-  const biggest = (list: ModelInfo[]) => [...list].sort((a, b) => b.ctx - a.ctx)[0];
-  const pool = MODELS.filter((m) => !isAutoModel(m.id));
-
   const liveOf = (pids: string[]): ModelInfo | null => {
     for (const pid of pids) {
-      const models = live?.[pid];
+      const models = live?.[pid]?.models;
       if (models?.length) return syntheticModel(pid, models[0]);
     }
     return null;
@@ -155,19 +141,13 @@ export function resolveAutoModel(
 
   if (id === "auto-local") {
     const localPids = [...LOCAL_PROVIDERS];
-    const fromLive = liveOf(localPids.filter((pid) => hasKey(pid))) ?? liveOf(localPids);
-    if (fromLive) return fromLive;
-    const local = pool.filter((m) => LOCAL_PROVIDERS.has(m.providerId));
-    return local[0] ?? pool[0];
+    return liveOf(localPids.filter(hasKey)) ?? liveOf(localPids) ?? FALLBACK_MODEL;
   }
 
-  const cloudPids = [...new Set(pool.filter((m) => !LOCAL_PROVIDERS.has(m.providerId)).map((m) => m.providerId))];
-  const fromLive = liveOf(cloudPids.filter(hasKey)) ?? liveOf(cloudPids.filter((pid) => providerById.get(pid)?.keyless));
-  if (fromLive) return fromLive;
-
-  const cloud = pool.filter((m) => !LOCAL_PROVIDERS.has(m.providerId));
-  const keyed = cloud.filter((m) => hasKey(m.providerId));
-  if (keyed.length) return biggest(keyed);
-  const keyless = cloud.filter((m) => providerById.get(m.providerId)?.keyless);
-  return (keyless.length ? biggest(keyless) : cloud[0]) ?? pool[0];
+  const cloudPids = PROVIDERS.filter((p) => !p.local).map((p) => p.id);
+  return (
+    liveOf(cloudPids.filter(hasKey)) ??
+    liveOf(cloudPids.filter((pid) => providerById.get(pid)?.keyless)) ??
+    FALLBACK_MODEL
+  );
 }

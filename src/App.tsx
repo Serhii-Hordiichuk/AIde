@@ -103,13 +103,14 @@ export default function App() {
     try {
       const models = await fetchProviderModels(p, cfg);
       setCatalog((c) => ({ ...c, [pid]: { models, at: Date.now() } }));
-    } catch {
+    } catch (e) {
       setCatalog((c) => ({ ...c, [pid]: { models: c[pid]?.models ?? [], at: 0 } }));
+      throw e;
     }
   }, []);
 
   const refreshAll = useCallback(() => {
-    PROVIDERS.forEach((p) => refreshProvider(p.id));
+    PROVIDERS.forEach((p) => refreshProvider(p.id).catch(() => {}));
   }, [refreshProvider]);
 
   /* on boot: fetch models for every reachable provider with a stale/missing cache */
@@ -119,7 +120,7 @@ export default function App() {
     PROVIDERS.forEach((p) => {
       const cfg = cfgs[p.id];
       const reachable = p.keyless || !!cfg?.key?.trim() || p.local;
-      if (reachable && !fresh[p.id]) refreshProvider(p.id);
+      if (reachable && !fresh[p.id]) refreshProvider(p.id).catch(() => {});
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identity]);
@@ -129,7 +130,7 @@ export default function App() {
   const onKeyChanged = useCallback(
     (pid: string) => {
       window.clearTimeout(keyTimers.current[pid]);
-      keyTimers.current[pid] = window.setTimeout(() => refreshProvider(pid), 800);
+      keyTimers.current[pid] = window.setTimeout(() => refreshProvider(pid).catch(() => {}), 800);
     },
     [refreshProvider]
   );
@@ -733,7 +734,14 @@ export default function App() {
         <div className="min-h-0 flex-1">
           {mode === "chat" ? (
             active && (
-              <ChatMode conv={active} patchConv={patchConv} cfgs={cfgs} modelId={modelId} onModel={setModelId} />
+              <ChatMode
+                conv={active}
+                patchConv={patchConv}
+                cfgs={cfgs}
+                catalog={catalog}
+                modelId={modelId}
+                onModel={setModelId}
+              />
             )
           ) : (
             <CoderMode
@@ -741,6 +749,7 @@ export default function App() {
               patchProject={patchProject}
               createProject={createProject}
               cfgs={cfgs}
+              catalog={catalog}
               modelId={modelId}
             />
           )}
@@ -808,7 +817,16 @@ export default function App() {
         </div>
       )}
 
-      {showSettings && <SettingsModal cfgs={cfgs} onCfgs={setCfgs} onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <SettingsModal
+          cfgs={cfgs}
+          onCfgs={setCfgs}
+          onKeyChanged={onKeyChanged}
+          catalog={catalog}
+          onRefresh={refreshProvider}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </div>
   );
 }
@@ -818,29 +836,26 @@ export default function App() {
 function SettingsModal({
   cfgs,
   onCfgs,
+  onKeyChanged,
+  catalog,
+  onRefresh,
   onClose,
 }: {
   cfgs: Record<string, ProviderCfg>;
   onCfgs: (c: Record<string, ProviderCfg>) => void;
+  onKeyChanged: (pid: string) => void;
+  catalog: LiveCatalog;
+  onRefresh: (pid: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [testState, setTestState] = useState<Record<string, "idle" | "busy" | "ok" | "fail">>({});
 
+  /* test = fetch the real /models list (also refreshes the catalog) */
   async function test(id: string) {
-    const p = providerById.get(id)!;
-    const cfg = cfgs[id];
     setTestState((s) => ({ ...s, [id]: "busy" }));
     try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 6000);
-      const headers: Record<string, string> = {};
-      if (cfg.key?.trim()) {
-        headers["Authorization"] = `Bearer ${cfg.key.trim()}`;
-        headers["x-api-key"] = cfg.key.trim();
-      }
-      const res = await fetch(cfg.baseUrl.replace(/\/+$/, "") + "/models", { headers, signal: ctrl.signal });
-      clearTimeout(t);
-      setTestState((s) => ({ ...s, [id]: res.ok ? "ok" : "fail" }));
+      await onRefresh(id);
+      setTestState((s) => ({ ...s, [id]: "ok" }));
     } catch {
       setTestState((s) => ({ ...s, [id]: "fail" }));
     }
@@ -870,11 +885,17 @@ function SettingsModal({
                   const cfg = cfgs[p.id] ?? { key: "", baseUrl: p.baseUrl };
                   const st = testState[p.id] ?? "idle";
                   const hasKey = !!cfg.key?.trim();
+                  const liveCount = catalog[p.id]?.models?.length ?? 0;
                   return (
                     <div key={p.id} className="rounded-2xl border border-line bg-panel2/70 p-3 transition-colors hover:border-line2">
                       <div className="flex items-center gap-2.5">
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.accent }} />
                         <span className="text-[13.5px] font-bold">{p.name}</span>
+                        {liveCount > 0 && (
+                          <span className="rounded-full border border-mint/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-mint">
+                            {liveCount} models
+                          </span>
+                        )}
                         {p.keyless ? (
                           <span className="flex items-center gap-1 rounded-full border border-violet/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-violet3">
                             <CheckIcon className="h-2.5 w-2.5" /> keyless · ready
@@ -911,7 +932,10 @@ function SettingsModal({
                             <input
                               type="password"
                               value={cfg.key}
-                              onChange={(e) => onCfgs({ ...cfgs, [p.id]: { ...cfg, key: e.target.value } })}
+                              onChange={(e) => {
+                                onCfgs({ ...cfgs, [p.id]: { ...cfg, key: e.target.value } });
+                                onKeyChanged(p.id);
+                              }}
                               placeholder={p.keyName ?? "API key"}
                               className="field flex-1 font-mono text-[12px]"
                               autoComplete="off"
@@ -919,7 +943,10 @@ function SettingsModal({
                           )}
                           <input
                             value={cfg.baseUrl}
-                            onChange={(e) => onCfgs({ ...cfgs, [p.id]: { ...cfg, baseUrl: e.target.value } })}
+                            onChange={(e) => {
+                              onCfgs({ ...cfgs, [p.id]: { ...cfg, baseUrl: e.target.value } });
+                              onKeyChanged(p.id);
+                            }}
                             className={`field font-mono text-[11px] ${p.local ? "flex-1" : "w-[220px] max-sm:hidden"}`}
                             title="Base URL"
                           />
