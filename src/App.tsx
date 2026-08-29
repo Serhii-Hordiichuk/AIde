@@ -11,9 +11,11 @@ import CoderMode from "./components/CoderMode";
 import ModelPicker from "./components/ModelPicker";
 import {
   BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon,
-  KeyIcon, ChatIcon, CodeIcon, CheckIcon,
+  KeyIcon, ChatIcon, CodeIcon, CheckIcon, CopyIcon,
   PanelLeftIcon, DotsIcon, PenIcon,
 } from "./components/Icons";
+import AuthGate from "./components/AuthGate";
+import { shortDid, identityBackup, didHue, type Identity } from "./lib/did";
 
 type Mode = "chat" | "coder";
 
@@ -63,10 +65,22 @@ export default function App() {
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<{ kind: "chat" | "project"; id: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: "chat" | "project" | "identity"; id: string; name: string } | null>(null);
+  const [profileMenu, setProfileMenu] = useState(false);
+
+  /* DID identity (gate) */
+  const [identity, setIdentity] = useState<Identity | null>(() => load<Identity | null>("identity", null));
+
+  /* live model catalog, fetched from provider APIs */
+  const [catalog, setCatalog] = useState<LiveCatalog>(() => load<LiveCatalog>("catalog", {}));
 
   const drawerCloseRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const cfgsRef = useRef(cfgs);
+  useEffect(() => {
+    cfgsRef.current = cfgs;
+  }, [cfgs]);
 
   useEffect(() => save("convs", convs), [convs]);
   useEffect(() => save("active", activeId), [activeId]);
@@ -76,6 +90,59 @@ export default function App() {
   useEffect(() => save("activeProject", activeProjectId), [activeProjectId]);
   useEffect(() => save("mode", mode), [mode]);
   useEffect(() => save("sideOpen", sideOpen), [sideOpen]);
+  useEffect(() => save("identity", identity), [identity]);
+  useEffect(() => save("catalog", catalog), [catalog]);
+
+  /* ---------- live model discovery ---------- */
+  const refreshProvider = useCallback(async (pid: string) => {
+    const p = providerById.get(pid);
+    if (!p) return;
+    const cfg = cfgsRef.current[pid] ?? { key: "", baseUrl: p.baseUrl };
+    const reachable = p.keyless || !!cfg.key?.trim() || p.local;
+    if (!reachable) return;
+    try {
+      const models = await fetchProviderModels(p, cfg);
+      setCatalog((c) => ({ ...c, [pid]: { models, at: Date.now() } }));
+    } catch {
+      setCatalog((c) => ({ ...c, [pid]: { models: c[pid]?.models ?? [], at: 0 } }));
+    }
+  }, []);
+
+  const refreshAll = useCallback(() => {
+    PROVIDERS.forEach((p) => refreshProvider(p.id));
+  }, [refreshProvider]);
+
+  /* on boot: fetch models for every reachable provider with a stale/missing cache */
+  useEffect(() => {
+    if (!identity) return;
+    const fresh = freshEntries(catalog);
+    PROVIDERS.forEach((p) => {
+      const cfg = cfgs[p.id];
+      const reachable = p.keyless || !!cfg?.key?.trim() || p.local;
+      if (reachable && !fresh[p.id]) refreshProvider(p.id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity]);
+
+  /* debounced refetch when a key is typed in Settings */
+  const keyTimers = useRef<Record<string, number>>({});
+  const onKeyChanged = useCallback(
+    (pid: string) => {
+      window.clearTimeout(keyTimers.current[pid]);
+      keyTimers.current[pid] = window.setTimeout(() => refreshProvider(pid), 800);
+    },
+    [refreshProvider]
+  );
+
+  /* click outside profile popover */
+  useEffect(() => {
+    if (!profileMenu) return;
+    const h = (e: MouseEvent) => {
+      if (!profileRef.current?.contains(e.target as Node)) setProfileMenu(false);
+    };
+    window.addEventListener("mousedown", h);
+    return () => window.removeEventListener("mousedown", h);
+  }, [profileMenu]);
 
   /* keep active id valid */
   useEffect(() => {
@@ -445,23 +512,80 @@ export default function App() {
         </button>
       </div>
 
-      {/* profile / settings row */}
-      <div className="border-t border-line p-3">
-        <button
-          onClick={openSettings}
-          className="row-hl flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors"
-          title="Provider settings"
-        >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet/18 text-[12px] font-extrabold text-violet3">
-            A
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-bold text-text">AiDe Studio</span>
-            <span className="block font-mono text-[9.5px] uppercase tracking-wider text-faint">free plan · settings</span>
-          </span>
-          <GearIcon className="h-4 w-4 text-faint" />
-        </button>
-      </div>
+      {/* DID profile row */}
+      {identity && (
+        <div className="relative border-t border-line p-3">
+          <button
+            onClick={() => setProfileMenu((v) => !v)}
+            className={`row-hl flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors ${
+              profileMenu ? "bg-panel2" : ""
+            }`}
+            title="Identity menu"
+          >
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold text-ink"
+              style={{ background: `linear-gradient(135deg, hsl(${didHue(identity.did)} 70% 65%), hsl(${(didHue(identity.did) + 60) % 360} 70% 55%))` }}
+            >
+              {identity.did.slice(-2).toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-mono text-[11px] font-bold text-text">{shortDid(identity.did, 14, 4)}</span>
+              <span className="block font-mono text-[9px] uppercase tracking-wider text-mint">did verified · full access</span>
+            </span>
+            <GearIcon className="h-4 w-4 text-faint" />
+          </button>
+
+          {profileMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setProfileMenu(false)} />
+              <div ref={profileRef} className="anim-rise absolute bottom-[64px] left-3 z-50 w-[236px] overflow-hidden rounded-xl border border-line2 bg-panel2 py-1 shadow-xl">
+                <div className="border-b border-line px-3.5 py-2.5">
+                  <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-faint">decentralized id</p>
+                  <p className="mt-1 break-all font-mono text-[10.5px] leading-relaxed text-violet3">{shortDid(identity.did, 22, 10)}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(identity.did).catch(() => {});
+                    setProfileMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-[12.5px] text-dim transition-colors hover:bg-panel3 hover:text-text"
+                >
+                  <CopyIcon className="h-3.5 w-3.5" /> Copy DID
+                </button>
+                <button
+                  onClick={() => {
+                    const blob = new Blob([identityBackup(identity)], { type: "application/json" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = "aide-identity.json";
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                    setProfileMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-[12.5px] text-dim transition-colors hover:bg-panel3 hover:text-text"
+                >
+                  <KeyIcon className="h-3.5 w-3.5" /> Download backup
+                </button>
+                <button
+                  onClick={openSettings}
+                  className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-[12.5px] text-dim transition-colors hover:bg-panel3 hover:text-text"
+                >
+                  <GearIcon className="h-3.5 w-3.5" /> Provider keys
+                </button>
+                <button
+                  onClick={() => {
+                    setDeleteTarget({ kind: "identity", id: identity.did, name: shortDid(identity.did) });
+                    setProfileMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 border-t border-line px-3.5 py-2 text-left text-[12.5px] text-coral transition-colors hover:bg-coral/10"
+                >
+                  <TrashIcon className="h-3.5 w-3.5" /> Sign out &amp; wipe
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -535,6 +659,11 @@ export default function App() {
     </div>
   );
 
+  /* ---------- DID gate ---------- */
+  if (!identity) {
+    return <AuthGate onReady={(id) => setIdentity(id)} />;
+  }
+
   return (
     <div className="flex h-dvh overflow-hidden bg-bg">
       {/* sidebar — chat mode only */}
@@ -570,7 +699,14 @@ export default function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         {/* top bar */}
         <header className="flex h-[54px] shrink-0 items-center gap-1.5 px-3.5">
-          <ModelPicker modelId={modelId} onChange={setModelId} cfgs={cfgs} />
+          <ModelPicker
+            modelId={modelId}
+            onChange={setModelId}
+            cfgs={cfgs}
+            catalog={catalog}
+            onRefresh={refreshProvider}
+            onRefreshAll={refreshAll}
+          />
 
           <div className="ml-auto flex items-center gap-1 rounded-full border border-line bg-panel p-1">
             {(
@@ -622,11 +758,23 @@ export default function App() {
           <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={() => setDeleteTarget(null)} />
           <div className="anim-rise relative w-full max-w-sm rounded-2xl border border-line2 bg-panel p-5 shadow-2xl">
             <h3 className="text-[15px] font-bold text-text">
-              Delete {deleteTarget.kind === "chat" ? "chat" : "project"}?
+              {deleteTarget.kind === "identity"
+                ? "Sign out & wipe identity?"
+                : `Delete ${deleteTarget.kind === "chat" ? "chat" : "project"}?`}
             </h3>
             <p className="mt-2 text-[13px] leading-relaxed text-dim">
-              <span className="font-semibold text-text">“{deleteTarget.name}”</span> will be permanently
-              removed. This action can't be undone.
+              {deleteTarget.kind === "identity" ? (
+                <>
+                  The DID <span className="font-mono text-[11.5px] text-violet3">{deleteTarget.name}</span> and all
+                  local data (chats, projects, keys) will be erased from this device. Without your backup file the
+                  identity is unrecoverable.
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold text-text">“{deleteTarget.name}”</span> will be permanently
+                  removed. This action can't be undone.
+                </>
+              )}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -636,12 +784,24 @@ export default function App() {
                 Cancel
               </button>
               <button
-                onClick={() =>
-                  deleteTarget.kind === "chat" ? handleDelete(deleteTarget.id) : deleteProject(deleteTarget.id)
-                }
+                onClick={() => {
+                  if (deleteTarget.kind === "chat") handleDelete(deleteTarget.id);
+                  else if (deleteTarget.kind === "project") deleteProject(deleteTarget.id);
+                  else {
+                    try {
+                      Object.keys(localStorage)
+                        .filter((k) => k.startsWith("aide."))
+                        .forEach((k) => localStorage.removeItem(k));
+                    } catch {
+                      /* ignore */
+                    }
+                    setDeleteTarget(null);
+                    setIdentity(null);
+                  }
+                }}
                 className="rounded-xl bg-coral px-4 py-2 text-[13px] font-bold text-white transition-all hover:brightness-110"
               >
-                Delete
+                {deleteTarget.kind === "identity" ? "Wipe & sign out" : "Delete"}
               </button>
             </div>
           </div>
