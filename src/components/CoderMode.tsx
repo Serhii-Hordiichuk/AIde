@@ -195,7 +195,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
       <div className="flex h-full flex-col items-center justify-center px-6 pb-10">
         <div className="anim-rise flex flex-col items-center">
           <div className="floaty mb-6">
-            <BrandMark className="h-14 w-14 drop-shadow-[0_0_28px_#31e5ae55]" />
+            <BrandMark className="h-14 w-14 drop-shadow-[0_0_28px_#615ced66]" />
           </div>
           <h1 className="font-display text-[clamp(24px,3vw,32px)] font-bold tracking-tight">
             AiDe <span className="text-brand">Coder</span>

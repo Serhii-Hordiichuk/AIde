@@ -1,26 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PROVIDERS, providerById, KIND_LABEL } from "./data/providers";
-import {
-  MODELS, modelById, DEFAULT_MODEL_ID, isAutoModel, resolveAutoModel, AUTO_LABEL,
-} from "./data/models";
+import { MODELS, modelById, DEFAULT_MODEL_ID, isAutoModel, resolveAutoModel } from "./data/models";
 import {
   load, save, newConversation, uid,
   type Conversation, type ProviderCfg, type Project,
 } from "./lib/store";
 import ChatMode from "./components/ChatMode";
 import CoderMode from "./components/CoderMode";
-import StatusBar from "./components/StatusBar";
+import ModelPicker from "./components/ModelPicker";
 import {
   BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon, FolderIcon,
   KeyIcon, ChatIcon, CodeIcon, CheckIcon,
 } from "./components/Icons";
 
 type Mode = "chat" | "coder";
-
-function fmtTok(n: number): string {
-  if (n >= 1000) return (n / 1000).toFixed(1) + "k";
-  return String(n);
-}
 
 export default function App() {
   const [mode, setMode] = useState<Mode>(() => load<Mode>("mode", "chat"));
@@ -115,85 +108,115 @@ export default function App() {
     [activeProjectId]
   );
 
-  const auto = isAutoModel(modelId);
-  const model = auto ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
-  const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
-  const keySet = !!cfgs[model.providerId]?.key?.trim();
-  const status: "ready" | "local" | "nokey" =
-    provider.keyless || keySet ? "ready" : provider.local ? "local" : "nokey";
-  const nKeys = useMemo(() => Object.values(cfgs).filter((c) => c.key?.trim()).length, [cfgs]);
-
-  const meta =
-    mode === "chat"
-      ? `≈ ${fmtTok(active?.messages.reduce((s, m) => s + (m.tokens ?? 0), 0) ?? 0)} tok · ${convs.length} chats`
-      : activeProject
-        ? `${activeProject.files.length} files · ${activeProject.status}`
-        : "no project yet";
+  const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
 
   return (
-    <div className="relative flex h-dvh flex-col overflow-hidden">
-      {/* ambient layers */}
-      <div className="ambient" aria-hidden>
-        <div className="dots" />
-        <div className="tint tint-mint" />
-        <div className="tint tint-gold" />
-        <div className="noise" />
-      </div>
+    <div className="flex h-dvh overflow-hidden bg-bg">
+      {/* ---------- sidebar ---------- */}
+      <aside className="flex w-[262px] shrink-0 flex-col border-r border-line bg-panel max-md:w-[230px]">
+        <header className="flex items-center gap-2.5 px-4 pb-2 pt-4">
+          <BrandMark className="h-8 w-8" />
+          <Wordmark className="text-[17px] leading-none" />
+        </header>
 
-      <div className="relative z-10 flex min-h-0 flex-1">
-        {/* -------- sidebar -------- */}
-        <aside className="flex w-[266px] shrink-0 flex-col border-r border-line bg-panel/70 backdrop-blur max-md:w-[234px]">
-          <header className="flex items-center gap-3 border-b border-line px-4 py-4">
-            <span className="floaty">
-              <BrandMark className="h-9 w-9 drop-shadow-[0_0_16px_#31e5ae40]" />
-            </span>
-            <div className="min-w-0">
-              <Wordmark className="block text-[16px] leading-none" />
-              <p className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-faint">ai-native studio</p>
-            </div>
-          </header>
-
+        <div className="px-3 pt-3">
           <button
             onClick={handleNew}
-            className="btn-brand mx-3 mt-3 flex items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-extrabold"
+            className="row-hl flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-panel2 py-2.5 text-[13.5px] font-bold text-text transition-all hover:border-line2"
           >
-            <PlusIcon className="h-4 w-4" /> New chat
+            <PlusIcon className="h-4 w-4 text-brand" /> New chat
           </button>
+        </div>
 
-          <div className="mt-4 flex-1 overflow-y-auto px-3 pb-3">
-            <p className="overline px-1.5 pb-2">chats</p>
-            <ul className="space-y-1">
-              {convs.map((c) => (
-                <li key={c.id}>
+        <div className="mt-3 flex-1 overflow-y-auto px-3 pb-3">
+          <p className="px-2 pb-1.5 text-[11.5px] font-bold text-faint">Chats</p>
+          <ul className="space-y-0.5">
+            {convs.map((c) => (
+              <li key={c.id}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setActiveId(c.id);
+                    setMode("chat");
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && (setActiveId(c.id), setMode("chat"))}
+                  className={`group flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[13px] transition-all ${
+                    active?.id === c.id && mode === "chat"
+                      ? "bg-panel3 font-semibold text-text"
+                      : "text-dim hover:bg-panel2 hover:text-text"
+                  }`}
+                >
+                  <span className="min-w-0 flex-1 truncate">{c.title || "New chat"}</span>
+                  {confirmDel === c.id ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(c.id);
+                      }}
+                      onMouseLeave={() => setConfirmDel(null)}
+                      className="rounded-md bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
+                    >
+                      del?
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDel(c.id);
+                      }}
+                      className="opacity-0 transition-opacity group-hover:opacity-100"
+                      title="Delete chat"
+                    >
+                      <TrashIcon className="h-3.5 w-3.5 text-faint hover:text-coral" />
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <p className="flex items-center justify-between px-2 pb-1.5 pt-4 text-[11.5px] font-bold text-faint">
+            Coder projects
+            <button
+              onClick={() => setMode("coder")}
+              className="rounded-md px-1.5 font-mono text-[10px] text-faint transition-colors hover:text-brand"
+              title="Open Coder"
+            >
+              + new
+            </button>
+          </p>
+          {projects.length === 0 ? (
+            <p className="px-2 py-1 text-[11.5px] text-faint">no projects yet</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {projects.map((p) => (
+                <li key={p.id}>
                   <div
                     role="button"
                     tabIndex={0}
                     onClick={() => {
-                      setActiveId(c.id);
-                      setMode("chat");
+                      setActiveProjectId(p.id);
+                      setMode("coder");
                     }}
-                    onKeyDown={(e) => e.key === "Enter" && (setActiveId(c.id), setMode("chat"))}
-                    className={`group relative flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-all ${
-                      active?.id === c.id && mode === "chat"
-                        ? "bg-brand/10 font-semibold text-text"
+                    onKeyDown={(e) => e.key === "Enter" && (setActiveProjectId(p.id), setMode("coder"))}
+                    className={`group flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[13px] transition-all ${
+                      activeProjectId === p.id && mode === "coder"
+                        ? "bg-panel3 font-semibold text-text"
                         : "text-dim hover:bg-panel2 hover:text-text"
                     }`}
                   >
-                    <span
-                      className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r bg-brand transition-opacity ${
-                        active?.id === c.id && mode === "chat" ? "opacity-100" : "opacity-0"
-                      }`}
-                    />
-                    <ChatIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                    <span className="min-w-0 flex-1 truncate">{c.title || "New chat"}</span>
-                    {confirmDel === c.id ? (
+                    <FolderIcon className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${p.status === "ready" ? "bg-mint" : "animate-pulse bg-gold"}`} />
+                    {confirmDelProj === p.id ? (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(c.id);
+                          deleteProject(p.id);
                         }}
-                        onMouseLeave={() => setConfirmDel(null)}
-                        className="rounded bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
+                        onMouseLeave={() => setConfirmDelProj(null)}
+                        className="rounded-md bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
                       >
                         del?
                       </button>
@@ -201,10 +224,10 @@ export default function App() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setConfirmDel(c.id);
+                          setConfirmDelProj(p.id);
                         }}
                         className="opacity-0 transition-opacity group-hover:opacity-100"
-                        title="Delete chat"
+                        title="Delete project"
                       >
                         <TrashIcon className="h-3.5 w-3.5 text-faint hover:text-coral" />
                       </button>
@@ -213,129 +236,55 @@ export default function App() {
                 </li>
               ))}
             </ul>
+          )}
+        </div>
 
-            <p className="overline flex items-center gap-2 px-1.5 pb-2 pt-5">
-              coder projects
+        <footer className="flex items-center gap-2 border-t border-line p-3">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="row-hl flex flex-1 items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-bold text-dim hover:text-text"
+          >
+            <GearIcon className="h-4 w-4" />
+            Settings
+          </button>
+          <span
+            className="flex h-8 w-8 cursor-default items-center justify-center rounded-full bg-gradient-to-br from-[#615ced] to-[#9d5cf5] text-[13px] font-extrabold text-white"
+            title="Guest"
+          >
+            A
+          </span>
+        </footer>
+      </aside>
+
+      {/* ---------- main ---------- */}
+      <main className="flex min-w-0 flex-1 flex-col">
+        {/* header */}
+        <div className="flex h-[52px] shrink-0 items-center gap-3 border-b border-line px-4">
+          <ModelPicker modelId={modelId} onChange={setModelId} cfgs={cfgs} />
+          <div className="ml-auto flex items-center rounded-full border border-line bg-panel p-1">
+            {(
+              [
+                { id: "chat", label: "Chat", icon: ChatIcon },
+                { id: "coder", label: "Coder", icon: CodeIcon },
+              ] as const
+            ).map((m) => (
               <button
-                onClick={() => setMode("coder")}
-                className="rounded border border-line px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-faint transition-colors hover:border-brand/50 hover:text-brand"
-                title="Open Coder"
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-bold transition-all ${
+                  mode === m.id ? "bg-panel3 text-text" : "text-dim hover:text-text"
+                }`}
               >
-                + new
+                <m.icon className={`h-3.5 w-3.5 ${mode === m.id ? (m.id === "chat" ? "text-brand" : "text-gold") : ""}`} />
+                {m.label}
               </button>
-            </p>
-            {projects.length === 0 ? (
-              <p className="px-2 py-2 font-mono text-[10.5px] text-faint">no projects yet</p>
-            ) : (
-              <ul className="space-y-1">
-                {projects.map((p) => (
-                  <li key={p.id}>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        setActiveProjectId(p.id);
-                        setMode("coder");
-                      }}
-                      onKeyDown={(e) => e.key === "Enter" && (setActiveProjectId(p.id), setMode("coder"))}
-                      className={`group relative flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-all ${
-                        activeProjectId === p.id && mode === "coder"
-                          ? "bg-gold/10 font-semibold text-text"
-                          : "text-dim hover:bg-panel2 hover:text-text"
-                      }`}
-                    >
-                      <span
-                        className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r bg-gold transition-opacity ${
-                          activeProjectId === p.id && mode === "coder" ? "opacity-100" : "opacity-0"
-                        }`}
-                      />
-                      <FolderIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                      <span className={`font-mono text-[9px] uppercase ${p.status === "ready" ? "text-mint" : "text-gold"}`}>
-                        {p.status === "ready" ? "●" : "◌"}
-                      </span>
-                      {confirmDelProj === p.id ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteProject(p.id);
-                          }}
-                          onMouseLeave={() => setConfirmDelProj(null)}
-                          className="rounded bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
-                        >
-                          del?
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConfirmDelProj(p.id);
-                          }}
-                          className="opacity-0 transition-opacity group-hover:opacity-100"
-                          title="Delete project"
-                        >
-                          <TrashIcon className="h-3.5 w-3.5 text-faint hover:text-coral" />
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+            ))}
           </div>
+        </div>
 
-          <footer className="border-t border-line p-3">
-            <button
-              onClick={() => setShowSettings(true)}
-              className="row-hl flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-bold text-dim hover:text-text"
-            >
-              <GearIcon className="h-4 w-4" />
-              Settings
-              <span className="ml-auto flex items-center gap-1.5 rounded-full border border-brand/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-brand">
-                <span className="pulse-live h-1 w-1 rounded-full bg-brand" />
-                {nKeys ? `${nKeys} keys · free` : "free · keyless"}
-              </span>
-            </button>
-          </footer>
-        </aside>
-
-        {/* -------- main -------- */}
-        <main className="min-w-0 flex-1">
-          {/* mode switch */}
-          <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2">
-            <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-line2 bg-panel/90 p-1 shadow-lg backdrop-blur">
-              {(
-                [
-                  { id: "chat", label: "Chat", icon: ChatIcon },
-                  { id: "coder", label: "Coder", icon: CodeIcon },
-                ] as const
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setMode(m.id)}
-                  className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-bold transition-all ${
-                    mode === m.id
-                      ? m.id === "chat"
-                        ? "bg-brand/15 text-brand"
-                        : "bg-gold/15 text-gold"
-                      : "text-dim hover:text-text"
-                  }`}
-                >
-                  <m.icon className="h-3.5 w-3.5" />
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
+        <div className="min-h-0 flex-1">
           {mode === "chat" ? (
-            <ChatMode
-              conv={active}
-              patchConv={patchConv}
-              cfgs={cfgs}
-              modelId={modelId}
-              onModel={setModelId}
-            />
+            <ChatMode conv={active} patchConv={patchConv} cfgs={cfgs} modelId={modelId} />
           ) : (
             <CoderMode
               project={activeProject}
@@ -345,23 +294,15 @@ export default function App() {
               modelId={modelId}
             />
           )}
-        </main>
-      </div>
-
-      <StatusBar
-        mode={mode}
-        model={auto ? `${AUTO_LABEL[modelId]} → ${model.name}` : model.name}
-        provider={provider.name}
-        status={status}
-        meta={meta}
-      />
+        </div>
+      </main>
 
       {showSettings && <SettingsModal cfgs={cfgs} onCfgs={setCfgs} onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
 
-/* ---------------- settings modal ---------------- */
+/* ---------------- settings ---------------- */
 
 function SettingsModal({
   cfgs,
@@ -397,13 +338,13 @@ function SettingsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal>
       <div className="anim-rise absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="anim-rise relative flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-line2 bg-panel shadow-[0_30px_90px_-20px_rgba(0,0,0,0.8)]">
+      <div className="anim-rise relative flex max-h-[84vh] w-full max-w-2xl flex-col overflow-hidden rounded-[22px] border border-line2 bg-panel shadow-[0_30px_90px_-20px_rgba(0,0,0,0.8)]">
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-          <KeyIcon className="h-4.5 w-4.5 text-brand" />
-          <div>
-            <h2 className="font-display text-[15px] font-bold">Providers</h2>
-            <p className="font-mono text-[10.5px] text-faint">all free · keys stay in your browser</p>
-          </div>
+          <KeyIcon className="h-4 w-4 text-brand" />
+          <h2 className="text-[15px] font-extrabold">Providers</h2>
+          <span className="rounded-full border border-line px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-faint">
+            all free
+          </span>
           <button onClick={onClose} className="icon-btn ml-auto" title="Close">
             <XIcon className="h-4 w-4" />
           </button>
@@ -419,13 +360,13 @@ function SettingsModal({
                   const st = testState[p.id] ?? "idle";
                   const hasKey = !!cfg.key?.trim();
                   return (
-                    <div key={p.id} className="rounded-xl border border-line bg-panel2/70 p-3 transition-colors hover:border-line2">
+                    <div key={p.id} className="rounded-2xl border border-line bg-panel2/70 p-3 transition-colors hover:border-line2">
                       <div className="flex items-center gap-2.5">
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.accent }} />
                         <span className="text-[13.5px] font-bold">{p.name}</span>
                         {p.keyless ? (
                           <span className="flex items-center gap-1 rounded-full border border-brand/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-brand">
-                            <CheckIcon className="h-2.5 w-2.5" /> keyless · ready
+                            <CheckIcon className="h-2.5 w-2.5" /> ready
                           </span>
                         ) : hasKey ? (
                           <span className="flex items-center gap-1 rounded-full border border-mint/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-mint">
@@ -433,7 +374,7 @@ function SettingsModal({
                           </span>
                         ) : p.local ? (
                           <span className="rounded-full border border-cyanic/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-cyanic">
-                            local · no key
+                            local
                           </span>
                         ) : null}
                         <a
@@ -449,10 +390,9 @@ function SettingsModal({
                           disabled={st === "busy"}
                           className="rounded-lg border border-line px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-dim transition-all hover:border-brand/50 hover:text-brand disabled:opacity-50"
                         >
-                          {st === "busy" ? "ping…" : st === "ok" ? "✓ ok" : st === "fail" ? "✕ fail" : "test"}
+                          {st === "busy" ? "…" : st === "ok" ? "✓" : st === "fail" ? "✕" : "test"}
                         </button>
                       </div>
-                      <p className="mt-1 text-[11.5px] leading-snug text-faint">{p.note}</p>
                       {!p.keyless && (
                         <div className="mt-2 flex gap-2">
                           {!p.local && (
@@ -468,7 +408,7 @@ function SettingsModal({
                           <input
                             value={cfg.baseUrl}
                             onChange={(e) => onCfgs({ ...cfgs, [p.id]: { ...cfg, baseUrl: e.target.value } })}
-                            className={`field font-mono text-[11px] ${p.local ? "flex-1" : "w-[220px] max-sm:hidden"}`}
+                            className={`field font-mono text-[11px] ${p.local ? "flex-1" : "w-[210px] max-sm:hidden"}`}
                             title="Base URL"
                           />
                         </div>
@@ -479,12 +419,6 @@ function SettingsModal({
               </div>
             </section>
           ))}
-        </div>
-
-        <div className="border-t border-line px-5 py-3">
-          <p className="font-mono text-[10.5px] text-faint">
-            Pollinations works with no key. Free keys unlock the bigger tiers.
-          </p>
         </div>
       </div>
     </div>
