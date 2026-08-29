@@ -6,7 +6,7 @@ import { Markdown } from "../lib/markdown";
 import { uid, DEFAULT_PARAMS, type ChatMessage, type Conversation, type ProviderCfg } from "../lib/store";
 import ModelPicker from "./ModelPicker";
 import {
-  BrandMark, SendIcon, StopIcon, PlusIcon, CopyIcon, CheckIcon, RefreshIcon,
+  BrandMark, SendIcon, StopIcon, CopyIcon, CheckIcon, RefreshIcon,
   BrainIcon, GlobeIcon, SearchIcon, CodeIcon, BulbIcon, PenIcon, ChartIcon,
 } from "./Icons";
 
@@ -200,9 +200,6 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
             className="block w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed outline-none placeholder:text-faint"
           />
           <div className="mt-2 flex items-center gap-1.5">
-            <button className="icon-btn" title="Attach (coming soon)">
-              <PlusIcon className="h-4.5 w-4.5" />
-            </button>
             <div className="ml-auto flex items-center gap-1.5">
               <button className={`chip-mode ${thinking ? "on" : ""}`} onClick={() => setThinking((v) => !v)}>
                 <BrainIcon className="h-3.5 w-3.5" /> Think

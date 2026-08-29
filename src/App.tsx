@@ -11,7 +11,7 @@ import ModelPicker from "./components/ModelPicker";
 import {
   BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon,
   KeyIcon, ChatIcon, CodeIcon, CheckIcon,
-  PanelLeftIcon, SidebarIcon, DotsIcon, PenIcon,
+  PanelLeftIcon, DotsIcon, PenIcon,
 } from "./components/Icons";
 
 type Mode = "chat" | "coder";
@@ -464,11 +464,11 @@ export default function App() {
     </div>
   );
 
-  /* ---------- collapsed icon rail (desktop) ---------- */
-  const rail = (
+  /* ---------- compact icon rail (collapsed desktop / mobile) ---------- */
+  const rail = (onExpand: () => void) => (
     <div className="flex h-full w-[60px] flex-col items-center bg-panel py-4">
       <button
-        onClick={() => setSideOpen(true)}
+        onClick={onExpand}
         className="icon-btn"
         title="Expand sidebar"
         aria-label="Expand sidebar"
@@ -503,23 +503,25 @@ export default function App() {
         })}
       </div>
 
-      {projects.length > 0 && (
-        <>
-          <div className="my-3 h-px w-7 bg-line2" />
-          <button
-            onClick={() => openProject(activeProjectId ?? projects[0].id)}
-            title="Open Coder"
-            aria-label="Open Coder"
-            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${
-              mode === "coder"
-                ? "border-violet/50 bg-violet/15 text-violet2"
-                : "border-transparent text-dim hover:border-line hover:bg-panel2 hover:text-text"
-            }`}
-          >
-            <CodeIcon className="h-4 w-4" />
-          </button>
-        </>
-      )}
+      <div className="my-3 h-px w-7 bg-line2" />
+      <button
+        onClick={() => {
+          if (projects.length) openProject(activeProjectId ?? projects[0].id);
+          else {
+            setMode("coder");
+            setMobileSide(false);
+          }
+        }}
+        title="Open Coder"
+        aria-label="Open Coder"
+        className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${
+          mode === "coder"
+            ? "border-violet/50 bg-violet/15 text-violet2"
+            : "border-transparent text-dim hover:border-line hover:bg-panel2 hover:text-text"
+        }`}
+      >
+        <CodeIcon className="h-4 w-4" />
+      </button>
 
       <button
         onClick={openSettings}
@@ -534,16 +536,26 @@ export default function App() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-bg">
-      {/* desktop sidebar — full panel or icon rail */}
-      <aside
-        className={`hidden shrink-0 overflow-hidden border-r border-line transition-[width] duration-200 ease-out md:block ${
-          sideOpen ? "w-[260px]" : "w-[60px]"
-        }`}
-      >
-        <div className="h-full">{sideOpen ? sidebar(false) : rail}</div>
-      </aside>
+      {/* sidebar — chat mode only */}
+      {mode === "chat" && (
+        <>
+          {/* desktop: full panel or compact rail */}
+          <aside
+            className={`hidden shrink-0 overflow-hidden border-r border-line transition-[width] duration-200 ease-out md:block ${
+              sideOpen ? "w-[260px]" : "w-[60px]"
+            }`}
+          >
+            <div className="h-full">{sideOpen ? sidebar(false) : rail(() => setSideOpen(true))}</div>
+          </aside>
 
-      {/* mobile drawer */}
+          {/* mobile: compact rail is always available */}
+          <aside className="shrink-0 border-r border-line md:hidden">
+            <div className="h-full">{rail(() => setMobileSide(true))}</div>
+          </aside>
+        </>
+      )}
+
+      {/* mobile drawer (opened from the rail) */}
       {mobileSide && (
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={() => setMobileSide(false)} />
@@ -557,15 +569,6 @@ export default function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         {/* top bar */}
         <header className="flex h-[54px] shrink-0 items-center gap-1.5 px-3.5">
-          <button
-            onClick={() => setMobileSide(true)}
-            className="icon-btn md:hidden"
-            title="Open menu"
-            aria-label="Open menu"
-          >
-            <SidebarIcon className="h-4 w-4" />
-          </button>
-
           <ModelPicker modelId={modelId} onChange={setModelId} cfgs={cfgs} />
 
           <div className="ml-auto flex items-center gap-1 rounded-full border border-line bg-panel p-1">
