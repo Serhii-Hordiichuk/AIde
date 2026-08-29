@@ -11,7 +11,7 @@ import ModelPicker from "./components/ModelPicker";
 import {
   BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon,
   KeyIcon, ChatIcon, CodeIcon, CheckIcon,
-  PanelLeftIcon, SidebarIcon,
+  PanelLeftIcon, SidebarIcon, DotsIcon, PenIcon,
 } from "./components/Icons";
 
 type Mode = "chat" | "coder";
@@ -21,15 +21,15 @@ function fmtTok(n: number): string {
   return String(n);
 }
 
-const GROUP_ORDER = ["Today", "Yesterday", "Previous 7 days", "Previous 30 days", "Older"] as const;
+const GROUP_ORDER = ["Today", "Yesterday", "Previous 7 Days", "Previous 30 Days", "Older"] as const;
 
 function groupLabel(ts: number): (typeof GROUP_ORDER)[number] {
   const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((startOfDay(new Date()) - startOfDay(new Date(ts))) / 86400000);
   if (diff <= 0) return "Today";
   if (diff === 1) return "Yesterday";
-  if (diff <= 7) return "Previous 7 days";
-  if (diff <= 30) return "Previous 30 days";
+  if (diff <= 7) return "Previous 7 Days";
+  if (diff <= 30) return "Previous 30 Days";
   return "Older";
 }
 
@@ -57,10 +57,15 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>(() => load<Project[]>("projects", []));
   const [activeProjectId, setActiveProjectId] = useState<string | null>(() => load<string | null>("activeProject", null));
   const [showSettings, setShowSettings] = useState(false);
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [confirmDelProj, setConfirmDelProj] = useState<string | null>(null);
+
+  /* qwen-style per-item kebab menu + inline rename + delete modal */
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: "chat" | "project"; id: string; name: string } | null>(null);
 
   const drawerCloseRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => save("convs", convs), [convs]);
   useEffect(() => save("active", activeId), [activeId]);
@@ -76,30 +81,29 @@ export default function App() {
     if (!convs.some((c) => c.id === activeId)) setActiveId(convs[0]?.id ?? "");
   }, [convs, activeId]);
 
-  /* Escape: settings → drawer → delete confirms */
+  /* Escape: delete modal → settings → drawer → kebab menu → rename */
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (showSettings) setShowSettings(false);
+      if (deleteTarget) setDeleteTarget(null);
+      else if (showSettings) setShowSettings(false);
       else if (mobileSide) setMobileSide(false);
-      else if (confirmDel || confirmDelProj) {
-        setConfirmDel(null);
-        setConfirmDelProj(null);
-      }
+      else if (menuFor) setMenuFor(null);
+      else if (renamingId) setRenamingId(null);
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [showSettings, mobileSide, confirmDel, confirmDelProj]);
+  }, [deleteTarget, showSettings, mobileSide, menuFor, renamingId]);
 
-  /* auto-dismiss delete confirmations */
+  /* click outside closes the kebab menu */
   useEffect(() => {
-    if (!confirmDel && !confirmDelProj) return;
-    const t = setTimeout(() => {
-      setConfirmDel(null);
-      setConfirmDelProj(null);
-    }, 2600);
-    return () => clearTimeout(t);
-  }, [confirmDel, confirmDelProj]);
+    if (!menuFor) return;
+    const h = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuFor(null);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [menuFor]);
 
   /* focus the close button when the drawer opens */
   useEffect(() => {
@@ -134,10 +138,19 @@ export default function App() {
         if (id === activeId) setActiveId(fallback[0].id);
         return fallback;
       });
-      setConfirmDel(null);
+      setDeleteTarget(null);
     },
     [activeId]
   );
+
+  const commitRename = useCallback(() => {
+    if (!renamingId) return;
+    const val = renameDraft.trim();
+    if (val) {
+      setConvs((prev) => prev.map((c) => (c.id === renamingId ? { ...c, title: val } : c)));
+    }
+    setRenamingId(null);
+  }, [renamingId, renameDraft]);
 
   const createProject = useCallback((prompt: string) => {
     const p: Project = {
@@ -164,7 +177,7 @@ export default function App() {
     (id: string) => {
       setProjects((prev) => prev.filter((p) => p.id !== id));
       if (activeProjectId === id) setActiveProjectId(null);
-      setConfirmDelProj(null);
+      setDeleteTarget(null);
     },
     [activeProjectId]
   );
@@ -241,53 +254,92 @@ export default function App() {
           <div key={g.label} className="mb-3">
             <p className="px-2 pb-1.5 text-[11px] font-bold text-faint">{g.label}</p>
             <ul className="space-y-0.5">
-              {g.items.map((c) => (
-                <li key={c.id}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openChat(c.id)}
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        openChat(c.id);
-                      }
-                    }}
-                    className={`group relative flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition-all ${
-                      active?.id === c.id && mode === "chat"
-                        ? "bg-panel3 font-semibold text-text"
-                        : "text-dim hover:bg-panel2 hover:text-text"
-                    }`}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{c.title || "New chat"}</span>
-                    {confirmDel === c.id ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(c.id);
-                        }}
-                        className="shrink-0 rounded-md bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
+              {g.items.map((c) => {
+                const isActive = active?.id === c.id && mode === "chat";
+                const isRenaming = renamingId === c.id;
+                const isMenu = menuFor === c.id;
+                return (
+                  <li key={c.id} className="relative">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => !isRenaming && openChat(c.id)}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget || isRenaming) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openChat(c.id);
+                        }
+                      }}
+                      className={`group flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition-all ${
+                        isActive
+                          ? "bg-panel3 font-semibold text-text"
+                          : "text-dim hover:bg-panel2 hover:text-text"
+                      }`}
+                    >
+                      {isRenaming ? (
+                        <input
+                          autoFocus
+                          value={renameDraft}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") commitRename();
+                            if (e.key === "Escape") setRenamingId(null);
+                          }}
+                          onBlur={commitRename}
+                          onClick={(e) => e.stopPropagation()}
+                          className="min-w-0 flex-1 rounded-md border border-violet/50 bg-panel2 px-1.5 py-0.5 text-[13px] text-text outline-none"
+                        />
+                      ) : (
+                        <span className="min-w-0 flex-1 truncate">{c.title || "New chat"}</span>
+                      )}
+
+                      {!isRenaming && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuFor(isMenu ? null : c.id);
+                          }}
+                          className={`shrink-0 rounded-md p-0.5 transition-opacity hover:bg-panel3 focus-visible:opacity-100 ${
+                            isMenu ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                          }`}
+                          title="Options"
+                          aria-label={`Options for ${c.title || "chat"}`}
+                        >
+                          <DotsIcon className="h-4 w-4 text-faint" />
+                        </button>
+                      )}
+                    </div>
+
+                    {isMenu && (
+                      <div
+                        ref={menuRef}
+                        className="anim-rise absolute right-2 top-9 z-50 w-40 overflow-hidden rounded-xl border border-line2 bg-panel2 py-1 shadow-xl"
                       >
-                        del?
-                      </button>
-                    ) : (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirmDelProj(null);
-                          setConfirmDel(c.id);
-                        }}
-                        className="shrink-0 rounded-md p-0.5 opacity-0 transition-opacity hover:bg-panel3 focus-visible:opacity-100 group-hover:opacity-100"
-                        title="Delete chat"
-                        aria-label={`Delete ${c.title || "chat"}`}
-                      >
-                        <TrashIcon className="h-3.5 w-3.5 text-faint transition-colors hover:text-coral" />
-                      </button>
+                        <button
+                          onClick={() => {
+                            setRenamingId(c.id);
+                            setRenameDraft(c.title || "");
+                            setMenuFor(null);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-dim transition-colors hover:bg-panel3 hover:text-text"
+                        >
+                          <PenIcon className="h-3.5 w-3.5" /> Rename
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteTarget({ kind: "chat", id: c.id, name: c.title || "New chat" });
+                            setMenuFor(null);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-coral transition-colors hover:bg-coral/10"
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" /> Delete
+                        </button>
+                      </div>
                     )}
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))}
@@ -298,59 +350,76 @@ export default function App() {
           <p className="px-2 py-1 font-mono text-[10.5px] text-faint">no projects yet</p>
         ) : (
           <ul className="space-y-0.5">
-            {projects.map((p) => (
-              <li key={p.id}>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openProject(p.id)}
-                  onKeyDown={(e) => {
-                    if (e.target !== e.currentTarget) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      openProject(p.id);
-                    }
-                  }}
-                  className={`group relative flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition-all ${
-                    activeProjectId === p.id && mode === "coder"
-                      ? "bg-panel3 font-semibold text-text"
-                      : "text-dim hover:bg-panel2 hover:text-text"
-                  }`}
-                >
-                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                  <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                      p.status === "ready" ? "bg-mint" : "animate-pulse bg-gold"
+            {projects.map((p) => {
+              const isActive = activeProjectId === p.id && mode === "coder";
+              const isMenu = menuFor === p.id;
+              return (
+                <li key={p.id} className="relative">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openProject(p.id)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openProject(p.id);
+                      }
+                    }}
+                    className={`group flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition-all ${
+                      isActive ? "bg-panel3 font-semibold text-text" : "text-dim hover:bg-panel2 hover:text-text"
                     }`}
-                    title={p.status === "ready" ? "Ready" : "Building"}
-                  />
-                  {confirmDelProj === p.id ? (
+                  >
+                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        p.status === "ready" ? "bg-mint" : "animate-pulse bg-gold"
+                      }`}
+                      title={p.status === "ready" ? "Ready" : "Building"}
+                    />
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteProject(p.id);
+                        setMenuFor(isMenu ? null : p.id);
                       }}
-                      className="shrink-0 rounded-md bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
+                      className={`shrink-0 rounded-md p-0.5 transition-opacity hover:bg-panel3 focus-visible:opacity-100 ${
+                        isMenu ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      }`}
+                      title="Options"
+                      aria-label={`Options for ${p.name}`}
                     >
-                      del?
+                      <DotsIcon className="h-4 w-4 text-faint" />
                     </button>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmDel(null);
-                        setConfirmDelProj(p.id);
-                      }}
-                      className="shrink-0 rounded-md p-0.5 opacity-0 transition-opacity hover:bg-panel3 focus-visible:opacity-100 group-hover:opacity-100"
-                      title="Delete project"
-                      aria-label={`Delete ${p.name}`}
+                  </div>
+
+                  {isMenu && (
+                    <div
+                      ref={menuRef}
+                      className="anim-rise absolute right-2 top-9 z-50 w-40 overflow-hidden rounded-xl border border-line2 bg-panel2 py-1 shadow-xl"
                     >
-                      <TrashIcon className="h-3.5 w-3.5 text-faint transition-colors hover:text-coral" />
-                    </button>
+                      <button
+                        onClick={() => {
+                          openProject(p.id);
+                          setMenuFor(null);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-dim transition-colors hover:bg-panel3 hover:text-text"
+                      >
+                        <CodeIcon className="h-3.5 w-3.5" /> Open
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeleteTarget({ kind: "project", id: p.id, name: p.name });
+                          setMenuFor(null);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-coral transition-colors hover:bg-coral/10"
+                      >
+                        <TrashIcon className="h-3.5 w-3.5" /> Delete
+                      </button>
+                    </div>
                   )}
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -543,6 +612,37 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={() => setDeleteTarget(null)} />
+          <div className="anim-rise relative w-full max-w-sm rounded-2xl border border-line2 bg-panel p-5 shadow-2xl">
+            <h3 className="text-[15px] font-bold text-text">
+              Delete {deleteTarget.kind === "chat" ? "chat" : "project"}?
+            </h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-dim">
+              <span className="font-semibold text-text">“{deleteTarget.name}”</span> will be permanently
+              removed. This action can't be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-xl border border-line px-4 py-2 text-[13px] font-semibold text-dim transition-all hover:border-line2 hover:text-text"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() =>
+                  deleteTarget.kind === "chat" ? handleDelete(deleteTarget.id) : deleteProject(deleteTarget.id)
+                }
+                className="rounded-xl bg-coral px-4 py-2 text-[13px] font-bold text-white transition-all hover:brightness-110"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSettings && <SettingsModal cfgs={cfgs} onCfgs={setCfgs} onClose={() => setShowSettings(false)} />}
     </div>

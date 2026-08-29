@@ -214,6 +214,14 @@ export const BulbIcon = (p: IP) => (
   </S>
 );
 
+export const DotsIcon = (p: IP) => (
+  <S {...p}>
+    <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+  </S>
+);
+
 export const PenIcon = (p: IP) => (
   <S {...p}>
     <path d="M4 20l.8-3.2L15.6 6a2 2 0 0 1 2.8 0l-.4-.4a2 2 0 0 1 0 2.8L7.2 19.2z" />
