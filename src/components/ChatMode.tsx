@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { MODELS, modelById, isAutoModel, resolveAutoModel } from "../data/models";
+import { getModelInfo, isAutoModel, resolveAutoModel } from "../data/models";
+import type { LiveCatalog } from "../lib/modelFetch";
 import { providerById, PROVIDERS } from "../data/providers";
 import { streamChat, NoKeyError } from "../lib/llm";
 import { Markdown } from "../lib/markdown";
@@ -24,11 +25,12 @@ interface Props {
   conv: Conversation;
   patchConv: (id: string, fn: (c: Conversation) => Conversation) => void;
   cfgs: Record<string, ProviderCfg>;
+  catalog: LiveCatalog;
   modelId: string;
   onModel: (id: string) => void;
 }
 
-export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Props) {
+export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onModel }: Props) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [thinking, setThinking] = useState(false);
@@ -44,7 +46,7 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
     if (el) el.scrollTop = el.scrollHeight;
   }, [conv.messages]);
 
-  const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
+  const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs, catalog) : getModelInfo(modelId);
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
 
   function autosize() {
@@ -320,7 +322,7 @@ function MessageRow({
               </button>
             )}
             <span className="ml-1 font-mono text-[10.5px] text-faint">
-              {modelById.get(m.modelId ?? "")?.name ?? ""} · ~{m.tokens ?? "—"} tok
+              {m.modelId ? getModelInfo(m.modelId).name : ""} · ~{m.tokens ?? "—"} tok
             </span>
           </div>
         )}
