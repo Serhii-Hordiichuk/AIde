@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { MODELS, modelById, isAutoModel, resolveAutoModel, AUTO_LABEL } from "../data/models";
+import { MODELS, modelById, isAutoModel, resolveAutoModel } from "../data/models";
 import { providerById, PROVIDERS } from "../data/providers";
 import { streamChat, NoKeyError } from "../lib/llm";
 import { Markdown } from "../lib/markdown";
 import { uid, DEFAULT_PARAMS, type ChatMessage, type Conversation, type ProviderCfg } from "../lib/store";
 import ModelPicker from "./ModelPicker";
 import {
-  Wordmark, SendIcon, StopIcon, PaperclipIcon, CopyIcon, CheckIcon,
+  BrandMark, SendIcon, StopIcon, PaperclipIcon, CopyIcon, CheckIcon,
   BrainIcon, GlobeIcon, SearchIcon, CodeIcon, BulbIcon, PenIcon, ChartIcon,
 } from "./Icons";
 
@@ -15,9 +15,9 @@ const PERSONA =
 
 const SUGGESTIONS = [
   { icon: CodeIcon, title: "Write code", text: "Write a useDebounce hook with tests" },
-  { icon: BulbIcon, title: "Explain a concept", text: "Explain RAG in plain words" },
-  { icon: PenIcon, title: "Help with writing", text: "Write a short poem about a terminal at 3 a.m." },
-  { icon: ChartIcon, title: "Compare tools", text: "Compare Ollama and vLLM for local models" },
+  { icon: BulbIcon, title: "Explain", text: "Explain RAG in plain words" },
+  { icon: PenIcon, title: "Write", text: "Write a short poem about a terminal at 3 a.m." },
+  { icon: ChartIcon, title: "Compare", text: "Compare Ollama and vLLM for local models" },
 ];
 
 interface Props {
@@ -49,12 +49,8 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
     stopRef.current = stopReq;
   }, [stopReq]);
 
-  const auto = isAutoModel(modelId);
-  const model = auto ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
+  const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
-  const keySet = !!cfgs[model.providerId]?.key?.trim();
-  const keyless = !!provider.keyless;
-  const ready = keyless || keySet || !!provider.local;
 
   function autosize() {
     const ta = taRef.current;
@@ -157,48 +153,28 @@ export default function ChatMode({ conv, patchConv, cfgs, modelId, onModel }: Pr
       {/* message feed */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {empty ? (
-          <div className="flex h-full flex-col justify-center overflow-y-auto">
-            <div className="mx-auto w-full max-w-[760px] px-6 py-12">
-              <p className="overline flex items-center gap-2">
-                <span className={`h-1.5 w-1.5 rounded-full ${ready ? "pulse-live bg-mint" : "bg-gold"}`} />
-                session · {auto ? `${AUTO_LABEL[modelId]} → ` : ""}
-                {provider.name} · {model.name} ·{" "}
-                {keyless ? "keyless · free" : keySet ? "key set · free tier" : provider.local ? "local runtime" : "needs a free key"}
-              </p>
-              <div className="mt-5">
-                <Wordmark className="text-[clamp(34px,4.6vw,58px)] leading-none" />
+          <div className="flex h-full flex-col items-center justify-center px-6 pb-10">
+            <div className="anim-rise flex flex-col items-center">
+              <div className="floaty mb-6">
+                <BrandMark className="h-14 w-14 drop-shadow-[0_0_28px_#31e5ae55]" />
               </div>
-              <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-dim">
-                Ask anything — code, concepts, writing. Or flip to <b className="text-gold">Coder</b> and
-                ship a whole app from a single sentence.
-              </p>
-
-              <div className="my-7 h-px bg-gradient-to-r from-brand/50 via-line2 to-transparent" />
-
-              <p className="overline mb-3">start with one of these</p>
-              <div className="grid grid-cols-2 gap-2.5 max-sm:grid-cols-1">
-                {SUGGESTIONS.map((s, i) => (
-                  <button
-                    key={s.title}
-                    onClick={() => send(s.text)}
-                    style={{ animationDelay: `${i * 70}ms` }}
-                    className="anim-rise group rounded-xl border border-line bg-panel/70 px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-brand/45 hover:bg-panel2"
-                  >
-                    <span className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] tracking-wider text-faint transition-colors group-hover:text-brand">
-                        0{i + 1}
-                      </span>
-                      <s.icon className="h-4 w-4 text-brand transition-transform group-hover:scale-110" />
-                    </span>
-                    <span className="mt-2 block text-[13.5px] font-bold">{s.title}</span>
-                    <span className="block truncate text-[12px] text-faint">{s.text}</span>
-                  </button>
-                ))}
-              </div>
-
-              <p className="mt-7 font-mono text-[10.5px] text-faint">
-                enter to send · shift+enter for a new line · every model here is free
-              </p>
+              <h1 className="font-display text-[clamp(24px,3vw,32px)] font-bold tracking-tight">
+                Hello, I'm <span className="text-brand">AiDe</span>
+              </h1>
+              <p className="mt-2 text-[14px] text-dim">How can I help you today?</p>
+            </div>
+            <div className="mt-9 flex max-w-[620px] flex-wrap justify-center gap-2">
+              {SUGGESTIONS.map((s, i) => (
+                <button
+                  key={s.title}
+                  onClick={() => send(s.text)}
+                  style={{ animationDelay: `${i * 60}ms` }}
+                  className="anim-rise row-hl flex items-center gap-2 rounded-full border border-line bg-panel/70 px-3.5 py-2 text-[12.5px] font-semibold text-dim transition-all hover:-translate-y-0.5 hover:border-brand/45 hover:text-text"
+                >
+                  <s.icon className="h-3.5 w-3.5 text-brand" />
+                  {s.title}
+                </button>
+              ))}
             </div>
           </div>
         ) : (

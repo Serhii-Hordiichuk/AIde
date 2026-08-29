@@ -225,9 +225,7 @@ export default function App() {
               </button>
             </p>
             {projects.length === 0 ? (
-              <p className="px-2 py-2 text-[11.5px] leading-relaxed text-faint">
-                Nothing yet — describe an app in Coder and it will appear here.
-              </p>
+              <p className="px-2 py-2 font-mono text-[10.5px] text-faint">no projects yet</p>
             ) : (
               <ul className="space-y-1">
                 {projects.map((p) => (
@@ -403,10 +401,8 @@ function SettingsModal({
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
           <KeyIcon className="h-4.5 w-4.5 text-brand" />
           <div>
-            <h2 className="font-display text-[15px] font-bold">Free providers</h2>
-            <p className="font-mono text-[10.5px] text-faint">
-              everything here is $0 — keys (when needed) never leave your browser
-            </p>
+            <h2 className="font-display text-[15px] font-bold">Providers</h2>
+            <p className="font-mono text-[10.5px] text-faint">all free · keys stay in your browser</p>
           </div>
           <button onClick={onClose} className="icon-btn ml-auto" title="Close">
             <XIcon className="h-4 w-4" />
@@ -487,8 +483,7 @@ function SettingsModal({
 
         <div className="border-t border-line px-5 py-3">
           <p className="font-mono text-[10.5px] text-faint">
-            AiDe works out of the box on keyless Pollinations models. Add free keys to unlock bigger
-            free tiers (Gemini, Groq, Cerebras…) or point it at your local runtimes.
+            Pollinations works with no key. Free keys unlock the bigger tiers.
           </p>
         </div>
       </div>
