@@ -21,17 +21,16 @@ function fmtTok(n: number): string {
   return String(n);
 }
 
-const GROUP_ORDER = ["Today", "Yesterday", "Previous"] as const;
+const GROUP_ORDER = ["Today", "Yesterday", "Previous 7 days", "Previous 30 days", "Older"] as const;
 
 function groupLabel(ts: number): (typeof GROUP_ORDER)[number] {
-  const d = new Date(ts);
-  const now = new Date();
-  const day = (x: Date) => x.toDateString();
-  const yest = new Date(now);
-  yest.setDate(now.getDate() - 1);
-  if (day(d) === day(now)) return "Today";
-  if (day(d) === day(yest)) return "Yesterday";
-  return "Previous";
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOfDay(new Date()) - startOfDay(new Date(ts))) / 86400000);
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff <= 7) return "Previous 7 days";
+  if (diff <= 30) return "Previous 30 days";
+  return "Older";
 }
 
 export default function App() {
@@ -294,19 +293,7 @@ export default function App() {
         ))}
 
         {/* projects */}
-        <p className="flex items-center gap-2 px-2 pb-1.5 pt-2 text-[11px] font-bold text-faint">
-          Projects
-          <button
-            onClick={() => {
-              setMode("coder");
-              setMobileSide(false);
-            }}
-            className="rounded-md border border-line px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-faint transition-colors hover:border-violet/50 hover:text-violet2"
-            title="Open Coder"
-          >
-            coder
-          </button>
-        </p>
+        <p className="px-2 pb-1.5 pt-2 text-[11px] font-bold text-faint">Projects</p>
         {projects.length === 0 ? (
           <p className="px-2 py-1 font-mono text-[10.5px] text-faint">no projects yet</p>
         ) : (
@@ -368,7 +355,27 @@ export default function App() {
         )}
       </div>
 
-      {/* footer */}
+      {/* feature links */}
+      <div className="border-t border-line px-3 pb-1 pt-3">
+        <button
+          onClick={() => {
+            setMode("coder");
+            setMobileSide(false);
+          }}
+          className={`row-hl flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-all ${
+            mode === "coder" ? "bg-panel3 text-text" : "text-dim hover:text-text"
+          }`}
+          title="Open Coder"
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet/15 text-violet2">
+            <CodeIcon className="h-3.5 w-3.5" />
+          </span>
+          <span className="flex-1 text-[13px] font-bold">Coder</span>
+          <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">build apps</span>
+        </button>
+      </div>
+
+      {/* profile / settings row */}
       <div className="border-t border-line p-3">
         <button
           onClick={openSettings}
@@ -378,8 +385,9 @@ export default function App() {
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet/18 text-[12px] font-extrabold text-violet3">
             A
           </span>
-          <span className="flex-1 text-[13px] font-bold text-dim transition-colors group-hover:text-text">
-            Settings
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-bold text-text">AiDe Studio</span>
+            <span className="block font-mono text-[9.5px] uppercase tracking-wider text-faint">free plan · settings</span>
           </span>
           <GearIcon className="h-4 w-4 text-faint" />
         </button>
