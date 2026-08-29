@@ -272,7 +272,7 @@ body {
   background: #ffffff0a;
 }
 
-/* Qwen-style send button */
+/* brand send button */
 .btn-send {
   background: linear-gradient(135deg, #615ced, #8b7cff);
   transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.2s ease, opacity 0.15s ease;
@@ -289,7 +289,7 @@ body {
   color: #71717d;
 }
 
-/* Qwen-style mode chip */
+/* composer mode chip */
 .chip-mode {
   @apply flex items-center gap-1.5 rounded-full border border-line bg-transparent px-3 py-1.5 text-[12.5px] font-bold text-dim transition-all hover:border-line2 hover:text-text;
 }
