@@ -1,18 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PROVIDERS, providerById, KIND_LABEL } from "./data/providers";
-import {
-  MODELS, modelById, DEFAULT_MODEL_ID, isAutoModel, resolveAutoModel, AUTO_LABEL,
-} from "./data/models";
+import { DEFAULT_MODEL_ID } from "./data/models";
 import {
   load, save, newConversation, uid,
   type Conversation, type ProviderCfg, type Project,
 } from "./lib/store";
 import ChatMode from "./components/ChatMode";
 import CoderMode from "./components/CoderMode";
-import StatusBar from "./components/StatusBar";
+import ModelPicker from "./components/ModelPicker";
 import {
-  BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon, FolderIcon,
+  BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon,
   KeyIcon, ChatIcon, CodeIcon, CheckIcon,
+  PanelLeftIcon, DotsIcon, PenIcon,
 } from "./components/Icons";
 
 type Mode = "chat" | "coder";
@@ -22,8 +21,22 @@ function fmtTok(n: number): string {
   return String(n);
 }
 
+const GROUP_ORDER = ["Today", "Yesterday", "Previous 7 Days", "Previous 30 Days", "Older"] as const;
+
+function groupLabel(ts: number): (typeof GROUP_ORDER)[number] {
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOfDay(new Date()) - startOfDay(new Date(ts))) / 86400000);
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff <= 7) return "Previous 7 Days";
+  if (diff <= 30) return "Previous 30 Days";
+  return "Older";
+}
+
 export default function App() {
   const [mode, setMode] = useState<Mode>(() => load<Mode>("mode", "chat"));
+  const [sideOpen, setSideOpen] = useState(() => load("sideOpen", true));
+  const [mobileSide, setMobileSide] = useState(false);
 
   const [convs, setConvs] = useState<Conversation[]>(() => {
     const stored = load<Conversation[]>("convs", []);
@@ -44,8 +57,15 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>(() => load<Project[]>("projects", []));
   const [activeProjectId, setActiveProjectId] = useState<string | null>(() => load<string | null>("activeProject", null));
   const [showSettings, setShowSettings] = useState(false);
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [confirmDelProj, setConfirmDelProj] = useState<string | null>(null);
+
+  /* qwen-style per-item kebab menu + inline rename + delete modal */
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: "chat" | "project"; id: string; name: string } | null>(null);
+
+  const drawerCloseRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => save("convs", convs), [convs]);
   useEffect(() => save("active", activeId), [activeId]);
@@ -54,10 +74,41 @@ export default function App() {
   useEffect(() => save("projects", projects), [projects]);
   useEffect(() => save("activeProject", activeProjectId), [activeProjectId]);
   useEffect(() => save("mode", mode), [mode]);
+  useEffect(() => save("sideOpen", sideOpen), [sideOpen]);
 
+  /* keep active id valid */
   useEffect(() => {
     if (!convs.some((c) => c.id === activeId)) setActiveId(convs[0]?.id ?? "");
   }, [convs, activeId]);
+
+  /* Escape: delete modal → settings → drawer → kebab menu → rename */
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (deleteTarget) setDeleteTarget(null);
+      else if (showSettings) setShowSettings(false);
+      else if (mobileSide) setMobileSide(false);
+      else if (menuFor) setMenuFor(null);
+      else if (renamingId) setRenamingId(null);
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [deleteTarget, showSettings, mobileSide, menuFor, renamingId]);
+
+  /* click outside closes the kebab menu */
+  useEffect(() => {
+    if (!menuFor) return;
+    const h = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuFor(null);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [menuFor]);
+
+  /* focus the close button when the drawer opens */
+  useEffect(() => {
+    if (mobileSide) requestAnimationFrame(() => drawerCloseRef.current?.focus());
+  }, [mobileSide]);
 
   const active = convs.find((c) => c.id === activeId) ?? convs[0];
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
@@ -66,12 +117,18 @@ export default function App() {
     setConvs((prev) => prev.map((c) => (c.id === id ? fn(c) : c)));
   }, []);
 
+  /* New chat: don't spawn duplicates when the current chat is still empty */
   const handleNew = useCallback(() => {
+    setMode("chat");
+    setMobileSide(false);
+    if (active && active.messages.length === 0) {
+      setActiveId(active.id);
+      return;
+    }
     const c = newConversation();
     setConvs((prev) => [c, ...prev]);
     setActiveId(c.id);
-    setMode("chat");
-  }, []);
+  }, [active]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -81,10 +138,19 @@ export default function App() {
         if (id === activeId) setActiveId(fallback[0].id);
         return fallback;
       });
-      setConfirmDel(null);
+      setDeleteTarget(null);
     },
     [activeId]
   );
+
+  const commitRename = useCallback(() => {
+    if (!renamingId) return;
+    const val = renameDraft.trim();
+    if (val) {
+      setConvs((prev) => prev.map((c) => (c.id === renamingId ? { ...c, title: val } : c)));
+    }
+    setRenamingId(null);
+  }, [renamingId, renameDraft]);
 
   const createProject = useCallback((prompt: string) => {
     const p: Project = {
@@ -99,6 +165,7 @@ export default function App() {
     setProjects((prev) => [p, ...prev]);
     setActiveProjectId(p.id);
     setMode("coder");
+    setMobileSide(false);
     return p.id;
   }, []);
 
@@ -110,234 +177,427 @@ export default function App() {
     (id: string) => {
       setProjects((prev) => prev.filter((p) => p.id !== id));
       if (activeProjectId === id) setActiveProjectId(null);
-      setConfirmDelProj(null);
+      setDeleteTarget(null);
     },
     [activeProjectId]
   );
 
-  const auto = isAutoModel(modelId);
-  const model = auto ? resolveAutoModel(modelId, cfgs) : modelById.get(modelId) ?? MODELS[0];
-  const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
-  const keySet = !!cfgs[model.providerId]?.key?.trim();
-  const status: "ready" | "local" | "nokey" =
-    provider.keyless || keySet ? "ready" : provider.local ? "local" : "nokey";
-  const nKeys = useMemo(() => Object.values(cfgs).filter((c) => c.key?.trim()).length, [cfgs]);
+  const openProject = (id: string) => {
+    setActiveProjectId(id);
+    setMode("coder");
+    setMobileSide(false);
+  };
 
-  const meta =
-    mode === "chat"
-      ? `≈ ${fmtTok(active?.messages.reduce((s, m) => s + (m.tokens ?? 0), 0) ?? 0)} tok · ${convs.length} chats`
-      : activeProject
-        ? `${activeProject.files.length} files · ${activeProject.status}`
-        : "no project yet";
+  const openChat = (id: string) => {
+    setActiveId(id);
+    setMode("chat");
+    setMobileSide(false);
+  };
 
-  return (
-    <div className="relative flex h-dvh flex-col overflow-hidden">
-      {/* ambient layers */}
-      <div className="ambient" aria-hidden>
-        <div className="dots" />
-        <div className="tint tint-mint" />
-        <div className="tint tint-gold" />
-        <div className="noise" />
+  const openSettings = () => {
+    setShowSettings(true);
+    setMobileSide(false);
+  };
+
+  /* deterministic buckets: Today → Yesterday → Previous */
+  const groups = GROUP_ORDER.map((label) => ({
+    label,
+    items: convs.filter((c) => groupLabel(c.createdAt) === label),
+  })).filter((g) => g.items.length > 0);
+
+  /* ---------- shared sidebar content ---------- */
+  const sidebar = (isDrawer: boolean) => (
+    <div className={`flex h-full flex-col bg-panel ${isDrawer ? "w-[280px]" : "w-[260px]"}`}>
+      {/* header */}
+      <div className="flex items-center gap-2.5 px-4 py-4">
+        <BrandMark className="h-8 w-8 shrink-0" />
+        <Wordmark className="min-w-0 truncate text-[17px]" />
+        {isDrawer ? (
+          <button
+            ref={drawerCloseRef}
+            onClick={() => setMobileSide(false)}
+            className="icon-btn ml-auto"
+            title="Close menu"
+            aria-label="Close menu"
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setSideOpen(false)}
+            className="icon-btn ml-auto"
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftIcon className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      <div className="relative z-10 flex min-h-0 flex-1">
-        {/* -------- sidebar -------- */}
-        <aside className="flex w-[266px] shrink-0 flex-col border-r border-line bg-panel/70 backdrop-blur max-md:w-[234px]">
-          <header className="flex items-center gap-3 border-b border-line px-4 py-4">
-            <span className="floaty">
-              <BrandMark className="h-9 w-9 drop-shadow-[0_0_16px_#31e5ae40]" />
-            </span>
-            <div className="min-w-0">
-              <Wordmark className="block text-[16px] leading-none" />
-              <p className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-faint">ai-native studio</p>
-            </div>
-          </header>
+      {/* new chat */}
+      <div className="px-3">
+        <button
+          onClick={handleNew}
+          className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-panel2 px-3.5 py-2.5 text-[13.5px] font-bold text-text transition-all hover:border-violet/45 hover:bg-panel3"
+        >
+          <PlusIcon className="h-4 w-4 text-violet2" />
+          New chat
+        </button>
+      </div>
 
-          <button
-            onClick={handleNew}
-            className="btn-brand mx-3 mt-3 flex items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-extrabold"
-          >
-            <PlusIcon className="h-4 w-4" /> New chat
-          </button>
-
-          <div className="mt-4 flex-1 overflow-y-auto px-3 pb-3">
-            <p className="overline px-1.5 pb-2">chats</p>
-            <ul className="space-y-1">
-              {convs.map((c) => (
-                <li key={c.id}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setActiveId(c.id);
-                      setMode("chat");
-                    }}
-                    onKeyDown={(e) => e.key === "Enter" && (setActiveId(c.id), setMode("chat"))}
-                    className={`group relative flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-all ${
-                      active?.id === c.id && mode === "chat"
-                        ? "bg-brand/10 font-semibold text-text"
-                        : "text-dim hover:bg-panel2 hover:text-text"
-                    }`}
-                  >
-                    <span
-                      className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r bg-brand transition-opacity ${
-                        active?.id === c.id && mode === "chat" ? "opacity-100" : "opacity-0"
-                      }`}
-                    />
-                    <ChatIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                    <span className="min-w-0 flex-1 truncate">{c.title || "New chat"}</span>
-                    {confirmDel === c.id ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(c.id);
-                        }}
-                        onMouseLeave={() => setConfirmDel(null)}
-                        className="rounded bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
-                      >
-                        del?
-                      </button>
-                    ) : (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirmDel(c.id);
-                        }}
-                        className="opacity-0 transition-opacity group-hover:opacity-100"
-                        title="Delete chat"
-                      >
-                        <TrashIcon className="h-3.5 w-3.5 text-faint hover:text-coral" />
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            <p className="overline flex items-center gap-2 px-1.5 pb-2 pt-5">
-              coder projects
-              <button
-                onClick={() => setMode("coder")}
-                className="rounded border border-line px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-faint transition-colors hover:border-brand/50 hover:text-brand"
-                title="Open Coder"
-              >
-                + new
-              </button>
-            </p>
-            {projects.length === 0 ? (
-              <p className="px-2 py-2 text-[11.5px] leading-relaxed text-faint">
-                Nothing yet — describe an app in Coder and it will appear here.
-              </p>
-            ) : (
-              <ul className="space-y-1">
-                {projects.map((p) => (
-                  <li key={p.id}>
+      {/* history + projects */}
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        {groups.length === 0 && (
+          <p className="px-2 py-1 font-mono text-[10.5px] text-faint">no chats yet</p>
+        )}
+        {groups.map((g) => (
+          <div key={g.label} className="mb-3">
+            <p className="px-2 pb-1.5 text-[11px] font-bold text-faint">{g.label}</p>
+            <ul className="space-y-0.5">
+              {g.items.map((c) => {
+                const isActive = active?.id === c.id && mode === "chat";
+                const isRenaming = renamingId === c.id;
+                const isMenu = menuFor === c.id;
+                return (
+                  <li key={c.id} className="relative">
                     <div
                       role="button"
                       tabIndex={0}
-                      onClick={() => {
-                        setActiveProjectId(p.id);
-                        setMode("coder");
+                      onClick={() => !isRenaming && openChat(c.id)}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget || isRenaming) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openChat(c.id);
+                        }
                       }}
-                      onKeyDown={(e) => e.key === "Enter" && (setActiveProjectId(p.id), setMode("coder"))}
-                      className={`group relative flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-all ${
-                        activeProjectId === p.id && mode === "coder"
-                          ? "bg-gold/10 font-semibold text-text"
+                      className={`group flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition-all ${
+                        isActive
+                          ? "bg-panel3 font-semibold text-text"
                           : "text-dim hover:bg-panel2 hover:text-text"
                       }`}
                     >
-                      <span
-                        className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r bg-gold transition-opacity ${
-                          activeProjectId === p.id && mode === "coder" ? "opacity-100" : "opacity-0"
-                        }`}
-                      />
-                      <FolderIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                      <span className={`font-mono text-[9px] uppercase ${p.status === "ready" ? "text-mint" : "text-gold"}`}>
-                        {p.status === "ready" ? "●" : "◌"}
-                      </span>
-                      {confirmDelProj === p.id ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteProject(p.id);
+                      {isRenaming ? (
+                        <input
+                          autoFocus
+                          value={renameDraft}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") commitRename();
+                            if (e.key === "Escape") setRenamingId(null);
                           }}
-                          onMouseLeave={() => setConfirmDelProj(null)}
-                          className="rounded bg-coral/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold uppercase text-coral"
-                        >
-                          del?
-                        </button>
+                          onBlur={commitRename}
+                          onClick={(e) => e.stopPropagation()}
+                          className="min-w-0 flex-1 rounded-md border border-violet/50 bg-panel2 px-1.5 py-0.5 text-[13px] text-text outline-none"
+                        />
                       ) : (
+                        <span className="min-w-0 flex-1 truncate">{c.title || "New chat"}</span>
+                      )}
+
+                      {!isRenaming && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setConfirmDelProj(p.id);
+                            setMenuFor(isMenu ? null : c.id);
                           }}
-                          className="opacity-0 transition-opacity group-hover:opacity-100"
-                          title="Delete project"
+                          className={`shrink-0 rounded-md p-0.5 transition-opacity hover:bg-panel3 focus-visible:opacity-100 ${
+                            isMenu ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                          }`}
+                          title="Options"
+                          aria-label={`Options for ${c.title || "chat"}`}
                         >
-                          <TrashIcon className="h-3.5 w-3.5 text-faint hover:text-coral" />
+                          <DotsIcon className="h-4 w-4 text-faint" />
                         </button>
                       )}
                     </div>
+
+                    {isMenu && (
+                      <div
+                        ref={menuRef}
+                        className="anim-rise absolute right-2 top-9 z-50 w-40 overflow-hidden rounded-xl border border-line2 bg-panel2 py-1 shadow-xl"
+                      >
+                        <button
+                          onClick={() => {
+                            setRenamingId(c.id);
+                            setRenameDraft(c.title || "");
+                            setMenuFor(null);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-dim transition-colors hover:bg-panel3 hover:text-text"
+                        >
+                          <PenIcon className="h-3.5 w-3.5" /> Rename
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteTarget({ kind: "chat", id: c.id, name: c.title || "New chat" });
+                            setMenuFor(null);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-coral transition-colors hover:bg-coral/10"
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" /> Delete
+                        </button>
+                      </div>
+                    )}
                   </li>
-                ))}
-              </ul>
-            )}
+                );
+              })}
+            </ul>
           </div>
+        ))}
 
-          <footer className="border-t border-line p-3">
+        {/* projects */}
+        <p className="px-2 pb-1.5 pt-2 text-[11px] font-bold text-faint">Projects</p>
+        {projects.length === 0 ? (
+          <p className="px-2 py-1 font-mono text-[10.5px] text-faint">no projects yet</p>
+        ) : (
+          <ul className="space-y-0.5">
+            {projects.map((p) => {
+              const isActive = activeProjectId === p.id && mode === "coder";
+              const isMenu = menuFor === p.id;
+              return (
+                <li key={p.id} className="relative">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openProject(p.id)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openProject(p.id);
+                      }
+                    }}
+                    className={`group flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition-all ${
+                      isActive ? "bg-panel3 font-semibold text-text" : "text-dim hover:bg-panel2 hover:text-text"
+                    }`}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        p.status === "ready" ? "bg-mint" : "animate-pulse bg-gold"
+                      }`}
+                      title={p.status === "ready" ? "Ready" : "Building"}
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuFor(isMenu ? null : p.id);
+                      }}
+                      className={`shrink-0 rounded-md p-0.5 transition-opacity hover:bg-panel3 focus-visible:opacity-100 ${
+                        isMenu ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      }`}
+                      title="Options"
+                      aria-label={`Options for ${p.name}`}
+                    >
+                      <DotsIcon className="h-4 w-4 text-faint" />
+                    </button>
+                  </div>
+
+                  {isMenu && (
+                    <div
+                      ref={menuRef}
+                      className="anim-rise absolute right-2 top-9 z-50 w-40 overflow-hidden rounded-xl border border-line2 bg-panel2 py-1 shadow-xl"
+                    >
+                      <button
+                        onClick={() => {
+                          openProject(p.id);
+                          setMenuFor(null);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-dim transition-colors hover:bg-panel3 hover:text-text"
+                      >
+                        <CodeIcon className="h-3.5 w-3.5" /> Open
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeleteTarget({ kind: "project", id: p.id, name: p.name });
+                          setMenuFor(null);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-coral transition-colors hover:bg-coral/10"
+                      >
+                        <TrashIcon className="h-3.5 w-3.5" /> Delete
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* feature links */}
+      <div className="border-t border-line px-3 pb-1 pt-3">
+        <button
+          onClick={() => {
+            setMode("coder");
+            setMobileSide(false);
+          }}
+          className={`row-hl flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-all ${
+            mode === "coder" ? "bg-panel3 text-text" : "text-dim hover:text-text"
+          }`}
+          title="Open Coder"
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet/15 text-violet2">
+            <CodeIcon className="h-3.5 w-3.5" />
+          </span>
+          <span className="flex-1 text-[13px] font-bold">Coder</span>
+          <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">build apps</span>
+        </button>
+      </div>
+
+      {/* profile / settings row */}
+      <div className="border-t border-line p-3">
+        <button
+          onClick={openSettings}
+          className="row-hl flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors"
+          title="Provider settings"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet/18 text-[12px] font-extrabold text-violet3">
+            A
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-bold text-text">AiDe Studio</span>
+            <span className="block font-mono text-[9.5px] uppercase tracking-wider text-faint">free plan · settings</span>
+          </span>
+          <GearIcon className="h-4 w-4 text-faint" />
+        </button>
+      </div>
+    </div>
+  );
+
+  /* ---------- compact icon rail (collapsed desktop / mobile) ---------- */
+  const rail = (onExpand: () => void) => (
+    <div className="flex h-full w-[60px] flex-col items-center bg-panel py-4">
+      <button
+        onClick={onExpand}
+        className="icon-btn"
+        title="Expand sidebar"
+        aria-label="Expand sidebar"
+      >
+        <PanelLeftIcon className="h-4 w-4" />
+      </button>
+      <button onClick={handleNew} className="icon-btn mt-1.5" title="New chat" aria-label="New chat">
+        <PlusIcon className="h-4 w-4 text-violet2" />
+      </button>
+
+      <div className="my-3 h-px w-7 bg-line2" />
+
+      <div className="min-h-0 w-full flex-1 space-y-1.5 overflow-y-auto px-3">
+        {convs.map((c) => {
+          const isActive = active?.id === c.id && mode === "chat";
+          const letter = (c.title || "").trim().charAt(0).toUpperCase();
+          return (
             <button
-              onClick={() => setShowSettings(true)}
-              className="row-hl flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-bold text-dim hover:text-text"
+              key={c.id}
+              onClick={() => openChat(c.id)}
+              title={c.title || "New chat"}
+              aria-label={c.title || "New chat"}
+              className={`mx-auto flex h-9 w-9 items-center justify-center rounded-xl border text-[12px] font-extrabold transition-all ${
+                isActive
+                  ? "border-violet/50 bg-violet/15 text-violet2"
+                  : "border-transparent text-dim hover:border-line hover:bg-panel2 hover:text-text"
+              }`}
             >
-              <GearIcon className="h-4 w-4" />
-              Settings
-              <span className="ml-auto flex items-center gap-1.5 rounded-full border border-brand/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-brand">
-                <span className="pulse-live h-1 w-1 rounded-full bg-brand" />
-                {nKeys ? `${nKeys} keys · free` : "free · keyless"}
-              </span>
+              {letter || <ChatIcon className="h-4 w-4" />}
             </button>
-          </footer>
-        </aside>
+          );
+        })}
+      </div>
 
-        {/* -------- main -------- */}
-        <main className="min-w-0 flex-1">
-          {/* mode switch */}
-          <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2">
-            <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-line2 bg-panel/90 p-1 shadow-lg backdrop-blur">
-              {(
-                [
-                  { id: "chat", label: "Chat", icon: ChatIcon },
-                  { id: "coder", label: "Coder", icon: CodeIcon },
-                ] as const
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setMode(m.id)}
-                  className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-bold transition-all ${
-                    mode === m.id
-                      ? m.id === "chat"
-                        ? "bg-brand/15 text-brand"
-                        : "bg-gold/15 text-gold"
-                      : "text-dim hover:text-text"
-                  }`}
-                >
-                  <m.icon className="h-3.5 w-3.5" />
-                  {m.label}
-                </button>
-              ))}
-            </div>
+      <div className="my-3 h-px w-7 bg-line2" />
+      <button
+        onClick={() => {
+          if (projects.length) openProject(activeProjectId ?? projects[0].id);
+          else {
+            setMode("coder");
+            setMobileSide(false);
+          }
+        }}
+        title="Open Coder"
+        aria-label="Open Coder"
+        className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${
+          mode === "coder"
+            ? "border-violet/50 bg-violet/15 text-violet2"
+            : "border-transparent text-dim hover:border-line hover:bg-panel2 hover:text-text"
+        }`}
+      >
+        <CodeIcon className="h-4 w-4" />
+      </button>
+
+      <button
+        onClick={openSettings}
+        title="Settings"
+        aria-label="Settings"
+        className="mt-3 flex h-9 w-9 items-center justify-center rounded-full bg-violet/18 text-[12px] font-extrabold text-violet3 transition-all hover:bg-violet/28"
+      >
+        A
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="flex h-dvh overflow-hidden bg-bg">
+      {/* sidebar — chat mode only */}
+      {mode === "chat" && (
+        <>
+          {/* desktop: full panel or compact rail */}
+          <aside
+            className={`hidden shrink-0 overflow-hidden border-r border-line transition-[width] duration-200 ease-out md:block ${
+              sideOpen ? "w-[260px]" : "w-[60px]"
+            }`}
+          >
+            <div className="h-full">{sideOpen ? sidebar(false) : rail(() => setSideOpen(true))}</div>
+          </aside>
+
+          {/* mobile: compact rail is always available */}
+          <aside className="shrink-0 border-r border-line md:hidden">
+            <div className="h-full">{rail(() => setMobileSide(true))}</div>
+          </aside>
+        </>
+      )}
+
+      {/* mobile drawer (opened from the rail) */}
+      {mobileSide && (
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+          <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={() => setMobileSide(false)} />
+          <div className="drawer-in absolute left-0 top-0 h-full border-r border-line shadow-2xl">
+            {sidebar(true)}
           </div>
+        </div>
+      )}
 
+      {/* main */}
+      <main className="flex min-w-0 flex-1 flex-col">
+        {/* top bar */}
+        <header className="flex h-[54px] shrink-0 items-center gap-1.5 px-3.5">
+          <ModelPicker modelId={modelId} onChange={setModelId} cfgs={cfgs} />
+
+          <div className="ml-auto flex items-center gap-1 rounded-full border border-line bg-panel p-1">
+            {(
+              [
+                { id: "chat", label: "Chat", icon: ChatIcon },
+                { id: "coder", label: "Coder", icon: CodeIcon },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-extrabold transition-all ${
+                  mode === m.id ? "bg-panel3 text-text shadow-sm" : "text-faint hover:text-dim"
+                }`}
+                aria-pressed={mode === m.id}
+              >
+                <m.icon className="h-3.5 w-3.5" />
+                <span className="max-sm:hidden">{m.label}</span>
+              </button>
+            ))}
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1">
           {mode === "chat" ? (
-            <ChatMode
-              conv={active}
-              patchConv={patchConv}
-              cfgs={cfgs}
-              modelId={modelId}
-              onModel={setModelId}
-            />
+            active && (
+              <ChatMode conv={active} patchConv={patchConv} cfgs={cfgs} modelId={modelId} onModel={setModelId} />
+            )
           ) : (
             <CoderMode
               project={activeProject}
@@ -347,23 +607,52 @@ export default function App() {
               modelId={modelId}
             />
           )}
-        </main>
-      </div>
+        </div>
 
-      <StatusBar
-        mode={mode}
-        model={auto ? `${AUTO_LABEL[modelId]} → ${model.name}` : model.name}
-        provider={provider.name}
-        status={status}
-        meta={meta}
-      />
+        {mode === "chat" && active && active.messages.length > 0 && (
+          <div className="pointer-events-none pb-2 text-center font-mono text-[10px] text-faint">
+            ≈ {fmtTok(active.messages.reduce((s, m) => s + (m.tokens ?? 0), 0))} tokens · free models only
+          </div>
+        )}
+      </main>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={() => setDeleteTarget(null)} />
+          <div className="anim-rise relative w-full max-w-sm rounded-2xl border border-line2 bg-panel p-5 shadow-2xl">
+            <h3 className="text-[15px] font-bold text-text">
+              Delete {deleteTarget.kind === "chat" ? "chat" : "project"}?
+            </h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-dim">
+              <span className="font-semibold text-text">“{deleteTarget.name}”</span> will be permanently
+              removed. This action can't be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-xl border border-line px-4 py-2 text-[13px] font-semibold text-dim transition-all hover:border-line2 hover:text-text"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() =>
+                  deleteTarget.kind === "chat" ? handleDelete(deleteTarget.id) : deleteProject(deleteTarget.id)
+                }
+                className="rounded-xl bg-coral px-4 py-2 text-[13px] font-bold text-white transition-all hover:brightness-110"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSettings && <SettingsModal cfgs={cfgs} onCfgs={setCfgs} onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
 
-/* ---------------- settings modal ---------------- */
+/* ---------------- settings ---------------- */
 
 function SettingsModal({
   cfgs,
@@ -397,18 +686,16 @@ function SettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal>
-      <div className="anim-rise absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="anim-rise relative flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-line2 bg-panel shadow-[0_30px_90px_-20px_rgba(0,0,0,0.8)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={onClose} />
+      <div className="anim-rise relative flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-[0_30px_90px_-20px_rgba(0,0,0,0.8)]">
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-          <KeyIcon className="h-4.5 w-4.5 text-brand" />
+          <KeyIcon className="h-4.5 w-4.5 text-violet2" />
           <div>
-            <h2 className="font-display text-[15px] font-bold">Free providers</h2>
-            <p className="font-mono text-[10.5px] text-faint">
-              everything here is $0 — keys (when needed) never leave your browser
-            </p>
+            <h2 className="font-display text-[15px] font-bold">Providers</h2>
+            <p className="font-mono text-[10.5px] text-faint">all free · keys stay in your browser</p>
           </div>
-          <button onClick={onClose} className="icon-btn ml-auto" title="Close">
+          <button onClick={onClose} className="icon-btn ml-auto" title="Close" aria-label="Close settings">
             <XIcon className="h-4 w-4" />
           </button>
         </div>
@@ -423,12 +710,12 @@ function SettingsModal({
                   const st = testState[p.id] ?? "idle";
                   const hasKey = !!cfg.key?.trim();
                   return (
-                    <div key={p.id} className="rounded-xl border border-line bg-panel2/70 p-3 transition-colors hover:border-line2">
+                    <div key={p.id} className="rounded-2xl border border-line bg-panel2/70 p-3 transition-colors hover:border-line2">
                       <div className="flex items-center gap-2.5">
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.accent }} />
                         <span className="text-[13.5px] font-bold">{p.name}</span>
                         {p.keyless ? (
-                          <span className="flex items-center gap-1 rounded-full border border-brand/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-brand">
+                          <span className="flex items-center gap-1 rounded-full border border-violet/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-violet3">
                             <CheckIcon className="h-2.5 w-2.5" /> keyless · ready
                           </span>
                         ) : hasKey ? (
@@ -444,14 +731,14 @@ function SettingsModal({
                           href={p.keyUrl ?? p.docs}
                           target="_blank"
                           rel="noreferrer"
-                          className="ml-auto font-mono text-[10px] text-faint underline decoration-line2 underline-offset-2 transition-colors hover:text-brand"
+                          className="ml-auto font-mono text-[10px] text-faint underline decoration-line2 underline-offset-2 transition-colors hover:text-violet3"
                         >
                           {p.keyUrl ? "get free key" : "docs"}
                         </a>
                         <button
                           onClick={() => test(p.id)}
                           disabled={st === "busy"}
-                          className="rounded-lg border border-line px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-dim transition-all hover:border-brand/50 hover:text-brand disabled:opacity-50"
+                          className="rounded-lg border border-line px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-dim transition-all hover:border-violet/50 hover:text-violet3 disabled:opacity-50"
                         >
                           {st === "busy" ? "ping…" : st === "ok" ? "✓ ok" : st === "fail" ? "✕ fail" : "test"}
                         </button>
@@ -487,8 +774,7 @@ function SettingsModal({
 
         <div className="border-t border-line px-5 py-3">
           <p className="font-mono text-[10.5px] text-faint">
-            AiDe works out of the box on keyless Pollinations models. Add free keys to unlock bigger
-            free tiers (Gemini, Groq, Cerebras…) or point it at your local runtimes.
+            Pollinations works with no key. Free keys unlock the bigger tiers.
           </p>
         </div>
       </div>

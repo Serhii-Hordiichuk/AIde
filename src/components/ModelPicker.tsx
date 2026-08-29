@@ -49,7 +49,7 @@ export default function ModelPicker({ modelId, onChange, cfgs }: Props) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex max-w-[260px] items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-[12.5px] font-semibold transition-all hover:border-line2 hover:bg-panel3"
+        className="row-hl flex max-w-[300px] items-center gap-2 rounded-xl px-2.5 py-2 text-[14px] font-extrabold transition-all"
         title="Change model — all models are free"
       >
         {auto ? (
@@ -65,7 +65,7 @@ export default function ModelPicker({ modelId, onChange, cfgs }: Props) {
       </button>
 
       {open && (
-        <div className="anim-rise absolute bottom-full left-0 z-50 mb-2 w-[400px] max-w-[90vw] overflow-hidden rounded-xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.75)]">
+        <div className="anim-rise absolute left-0 top-full z-50 mt-2 w-[400px] max-w-[90vw] overflow-hidden rounded-2xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.75)]">
           <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
             <p className="overline">model · free providers only</p>
             <span className="rounded border border-brand/40 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-brand">

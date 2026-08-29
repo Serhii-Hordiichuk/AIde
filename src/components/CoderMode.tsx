@@ -192,20 +192,17 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
   /* ---------- empty state ---------- */
   if (!project) {
     return (
-      <div className="flex h-full flex-col items-center justify-center overflow-y-auto px-6 py-12">
-        <div className="floaty mb-5">
-          <BrandMark className="h-16 w-16 drop-shadow-[0_0_28px_#31e5ae66]" />
+      <div className="flex h-full flex-col items-center justify-center px-6 pb-10">
+        <div className="anim-rise flex flex-col items-center">
+          <div className="floaty mb-6">
+            <BrandMark className="h-14 w-14 drop-shadow-[0_0_28px_#615ced66]" />
+          </div>
+          <h1 className="font-display text-[clamp(24px,3vw,32px)] font-bold tracking-tight">
+            AiDe <span className="text-brand">Coder</span>
+          </h1>
+          <p className="mt-2 text-[14px] text-dim">Describe an app — the crew builds it from scratch.</p>
         </div>
-        <h1 className="font-display text-[clamp(24px,3vw,34px)] font-bold tracking-tight">
-          AiDe <span className="text-brand">Coder</span>
-        </h1>
-        <p className="mt-2 max-w-[520px] text-center text-[14px] leading-relaxed text-dim">
-          Describe an app — the <b className="text-gold">Architect</b> splits the task into subtasks by
-          specialty: <b className="text-cyanic">UI Designer</b>, <b className="text-brand">Frontend Engineer</b>,{" "}
-          <b className="text-[#c9a0ff]">Technical Writer</b>, <b className="text-[#ff8a5c]">QA</b> — and the crew ships
-          working files with a live preview. Free models, no key required.
-        </p>
-        <div className="mt-7 w-full max-w-[560px]">
+        <div className="mt-8 w-full max-w-[620px]">
           <div className="composer-glow flex items-end gap-2 rounded-2xl border border-line2 bg-panel2 p-2.5">
             <textarea
               value={prompt}
@@ -216,8 +213,8 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                   if (prompt.trim()) createProject(prompt.trim());
                 }
               }}
-              rows={2}
-              placeholder={'For example: a landing page for a coffee shop "Grain"'}
+              rows={1}
+              placeholder='e.g. a landing page for a coffee shop "Grain"'
               className="flex-1 resize-none bg-transparent px-2 py-1.5 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
             />
             <button
@@ -230,11 +227,12 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
             </button>
           </div>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {CODER_SUGGESTIONS.map((s) => (
+            {CODER_SUGGESTIONS.map((s, i) => (
               <button
                 key={s}
                 onClick={() => createProject(s)}
-                className="row-hl rounded-full border border-line bg-panel/70 px-3.5 py-1.5 text-[12.5px] text-dim transition-all hover:border-brand/45 hover:text-text"
+                style={{ animationDelay: `${i * 60}ms` }}
+                className="anim-rise row-hl rounded-full border border-line bg-panel/70 px-3.5 py-2 text-[12.5px] font-semibold text-dim transition-all hover:-translate-y-0.5 hover:border-brand/45 hover:text-text"
               >
                 {s}
               </button>
@@ -371,8 +369,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
 
           {project.status === "ready" && (
             <div className="step-in mt-2 rounded-xl border border-line bg-panel px-3 py-2.5 text-[12px] leading-relaxed text-dim">
-              The crew finished — try it in <b className="text-brand">Preview</b>. Ask for tweaks below, e.g.{" "}
-              <i>“make the accent green”</i> or <i>“rename it to "My App"”</i>.
+              Done — try <b className="text-brand">Preview</b>, or ask for a tweak below.
             </div>
           )}
         </div>

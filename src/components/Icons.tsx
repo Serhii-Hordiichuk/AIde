@@ -21,15 +21,21 @@ const S = ({ className = "w-4 h-4", children }: IP & { children: React.ReactNode
 
 export const BrandMark = ({ className = "w-8 h-8" }: IP) => (
   <svg viewBox="0 0 32 32" className={className} aria-hidden>
-    <rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="#10151C" stroke="#31E5AE" strokeOpacity="0.55" strokeWidth="1.5" />
-    <path d="M10 11l5.5 5L10 21" stroke="#31E5AE" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    <rect x="17.5" y="19" width="7" height="2.6" rx="1.3" fill="#FFC24B" />
+    <defs>
+      <linearGradient id="aide-g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#8b7cff" />
+        <stop offset="1" stopColor="#615ced" />
+      </linearGradient>
+    </defs>
+    <rect x="1.5" y="1.5" width="29" height="29" rx="9" fill="#1d1d22" stroke="url(#aide-g)" strokeOpacity="0.7" strokeWidth="1.5" />
+    <path d="M10 11l5.5 5L10 21" stroke="url(#aide-g)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <rect x="17.5" y="19" width="7" height="2.6" rx="1.3" fill="#ffc24b" />
   </svg>
 );
 
 export const Wordmark = ({ className = "" }: IP) => (
-  <span className={`font-display font-bold tracking-tight text-text ${className}`}>
-    Ai<span className="text-brand">De</span>
+  <span className={`font-sans font-extrabold tracking-tight text-text ${className}`}>
+    Ai<span className="text-violet2">De</span>
     <span className="wm-cursor">_</span>
   </span>
 );
@@ -39,6 +45,19 @@ export const Wordmark = ({ className = "" }: IP) => (
 export const BoltIcon = (p: IP) => (
   <S {...p}>
     <path d="M13 2.5L4.5 13.5H11l-1 8 8.5-11H12z" />
+  </S>
+);
+
+export const PanelLeftIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <path d="M9.5 4v16" />
+  </S>
+);
+
+export const SidebarIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M4 6.5h16M4 12h16M4 17.5h10" />
   </S>
 );
 
@@ -192,6 +211,14 @@ export const SearchIcon = (p: IP) => (
 export const BulbIcon = (p: IP) => (
   <S {...p}>
     <path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 3.6 10.8c-.7.6-1.1 1.3-1.3 2.2h-4.6c-.2-.9-.6-1.6-1.3-2.2A6 6 0 0 1 12 3z" />
+  </S>
+);
+
+export const DotsIcon = (p: IP) => (
+  <S {...p}>
+    <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
   </S>
 );
 
