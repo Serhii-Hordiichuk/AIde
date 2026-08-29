@@ -5,6 +5,7 @@ import {
   load, save, newConversation, uid,
   type Conversation, type ProviderCfg, type Project,
 } from "./lib/store";
+import { fetchProviderModels, freshEntries, type LiveCatalog } from "./lib/modelFetch";
 import ChatMode from "./components/ChatMode";
 import CoderMode from "./components/CoderMode";
 import ModelPicker from "./components/ModelPicker";

@@ -88,25 +88,85 @@ const LOCAL_PROVIDERS = new Set(
   ["ollama", "lmstudio", "vllm", "llamacpp", "localai", "kobold"]
 );
 
+/* ---------------- live (dynamically fetched) models ---------------- */
+
+const DYN = "dyn:";
+
+/** Stable id for a model discovered from a provider's /models endpoint. */
+export function dynId(providerId: string, apiId: string): string {
+  return `${DYN}${providerId}:${apiId}`;
+}
+
+export function parseDynId(id: string): { providerId: string; apiId: string } | null {
+  if (!id.startsWith(DYN)) return null;
+  const rest = id.slice(DYN.length);
+  const idx = rest.indexOf(":");
+  if (idx < 0) return null;
+  return { providerId: rest.slice(0, idx), apiId: rest.slice(idx + 1) };
+}
+
+/** Builds a ModelInfo for a model fetched live from a provider API. */
+export function syntheticModel(providerId: string, apiId: string): ModelInfo {
+  const p = providerById.get(providerId);
+  return {
+    id: dynId(providerId, apiId),
+    name: apiId,
+    providerId,
+    apiId,
+    ctx: 128,
+    priceIn: p?.local ? null : 0,
+    priceOut: p?.local ? null : 0,
+    open: true,
+    tags: ["live"],
+  };
+}
+
+/** Registry first, then live models, then a safe default. */
+export function getModelInfo(id: string): ModelInfo {
+  const reg = modelById.get(id);
+  if (reg) return reg;
+  const dyn = parseDynId(id);
+  if (dyn) return syntheticModel(dyn.providerId, dyn.apiId);
+  return MODELS[0];
+}
+
 /**
- * Resolves a virtual routing model to a concrete one:
- *  - auto-free  → best free cloud model: providers with a key first, then keyless
- *                 (Pollinations), biggest context wins
- *  - auto-local → best local runtime model (Ollama preferred)
+ * Resolves a virtual routing model to a concrete one.
+ * Live catalogs (fetched from provider APIs) take priority over the built-in registry:
+ *  - auto-free  → first live model of a keyed/keyless cloud provider, else registry free models
+ *  - auto-local → first live model of a reachable local runtime, else registry local models
  */
-export function resolveAutoModel(id: string, cfgs: Record<string, Cfg> | undefined): ModelInfo {
-  const hasKey = (m: ModelInfo) => !!cfgs?.[m.providerId]?.key?.trim();
+export function resolveAutoModel(
+  id: string,
+  cfgs: Record<string, Cfg> | undefined,
+  live?: Record<string, string[]>
+): ModelInfo {
+  const hasKey = (pid: string) => !!cfgs?.[pid]?.key?.trim();
   const biggest = (list: ModelInfo[]) => [...list].sort((a, b) => b.ctx - a.ctx)[0];
   const pool = MODELS.filter((m) => !isAutoModel(m.id));
 
+  const liveOf = (pids: string[]): ModelInfo | null => {
+    for (const pid of pids) {
+      const models = live?.[pid];
+      if (models?.length) return syntheticModel(pid, models[0]);
+    }
+    return null;
+  };
+
   if (id === "auto-local") {
+    const localPids = [...LOCAL_PROVIDERS];
+    const fromLive = liveOf(localPids.filter((pid) => hasKey(pid))) ?? liveOf(localPids);
+    if (fromLive) return fromLive;
     const local = pool.filter((m) => LOCAL_PROVIDERS.has(m.providerId));
-    const keyed = local.filter(hasKey);
-    return (keyed.length ? biggest(keyed) : local[0]) ?? pool[0];
+    return local[0] ?? pool[0];
   }
 
+  const cloudPids = [...new Set(pool.filter((m) => !LOCAL_PROVIDERS.has(m.providerId)).map((m) => m.providerId))];
+  const fromLive = liveOf(cloudPids.filter(hasKey)) ?? liveOf(cloudPids.filter((pid) => providerById.get(pid)?.keyless));
+  if (fromLive) return fromLive;
+
   const cloud = pool.filter((m) => !LOCAL_PROVIDERS.has(m.providerId));
-  const keyed = cloud.filter(hasKey);
+  const keyed = cloud.filter((m) => hasKey(m.providerId));
   if (keyed.length) return biggest(keyed);
   const keyless = cloud.filter((m) => providerById.get(m.providerId)?.keyless);
   return (keyless.length ? biggest(keyless) : cloud[0]) ?? pool[0];
