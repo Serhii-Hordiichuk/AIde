@@ -338,7 +338,7 @@ function MessageRow({
   if (m.role === "user") {
     return (
       <div className="anim-rise mb-6 flex justify-end">
-        <div className="max-w-[82%] rounded-[22px] rounded-br-[8px] bg-panel3 px-4.5 py-3 text-[14.5px] leading-relaxed whitespace-pre-wrap">
+        <div className="max-w-[85%] rounded-[22px] rounded-br-[8px] bg-panel3 px-3.5 py-3 text-[14.5px] leading-relaxed whitespace-pre-wrap break-words sm:px-4.5">
           {m.content}
         </div>
       </div>

@@ -7,7 +7,7 @@ import { ROLES, buildPlan, buildLLMPlan, uniqueRoles, type Subtask } from "../li
 import type { Project, ProjectFile, ProviderCfg } from "../lib/store";
 import {
   BrandMark, SendIcon, CodeIcon, EyeIcon, TerminalIcon, RefreshIcon, PlayIcon,
-  CheckIcon, FileIcon, OpenIcon,
+  CheckIcon, FileIcon, OpenIcon, XIcon,
 } from "./Icons";
 
 type Tab = "code" | "preview" | "term";
@@ -46,6 +46,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
   const [plan, setPlan] = useState<Subtask[]>([]);
   const [term, setTerm] = useState<string[]>([]);
   const [previewKey, setPreviewKey] = useState(0);
+  const [showPlan, setShowPlan] = useState(false);
   const termRef = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
@@ -298,6 +299,83 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
     window.open(URL.createObjectURL(blob), "_blank");
   }
 
+  /* plan feed — shared between the desktop panel and the mobile bottom sheet */
+  const feedRows = (
+    <>
+      {plan.map((s) => {
+        const role = ROLES[s.role];
+        return (
+          <div
+            key={s.id}
+            className={`step-in flex items-start gap-2.5 rounded-lg border px-2.5 py-2 transition-colors ${
+              s.state === "run" ? "border-line2 bg-panel2" : "border-line/60 bg-panel/50"
+            }`}
+          >
+            <span
+              className="mt-px flex h-6 w-9 shrink-0 items-center justify-center rounded border font-mono text-[9px] font-bold tracking-wider"
+              style={{ color: role.color, borderColor: role.color + "55", background: role.color + "12" }}
+            >
+              {role.short}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className={`block text-[12.5px] leading-snug ${s.state === "wait" ? "text-faint" : "text-text"}`}>
+                {s.label}
+              </span>
+              {s.produces && (
+                <span className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] text-faint">
+                  <FileIcon className="h-2.5 w-2.5" />
+                  {s.produces}
+                </span>
+              )}
+            </span>
+            <span className="mt-1 shrink-0">
+              {s.state === "done" ? (
+                <CheckIcon className="h-3.5 w-3.5 text-mint" />
+              ) : s.state === "run" ? (
+                <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line2 border-t-brand" />
+              ) : (
+                <span className="block h-2 w-2 translate-x-[3px] rounded-full border border-line2" />
+              )}
+            </span>
+          </div>
+        );
+      })}
+
+      {project.status === "ready" && (
+        <div className="step-in mt-2 rounded-xl border border-line bg-panel px-3 py-2.5 text-[12px] leading-relaxed text-dim">
+          Done — try <b className="text-brand">Preview</b>, or ask for a tweak below.
+        </div>
+      )}
+    </>
+  );
+
+  const followBox = (autoFocus?: boolean) => (
+    <div className="flex items-end gap-2 rounded-xl border border-line bg-panel2 p-2">
+      <textarea
+        value={follow}
+        onChange={(e) => setFollow(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            applyFollowUp();
+          }
+        }}
+        rows={1}
+        autoFocus={autoFocus}
+        placeholder={project.status === "ready" ? "Ask the crew for a change…" : "The crew is working…"}
+        disabled={project.status !== "ready"}
+        className="flex-1 resize-none bg-transparent px-1.5 py-1 text-[13px] outline-none placeholder:text-faint disabled:opacity-50"
+      />
+      <button
+        onClick={applyFollowUp}
+        disabled={!follow.trim() || project.status !== "ready"}
+        className="btn-brand flex h-8 w-8 shrink-0 items-center justify-center rounded-lg disabled:opacity-30"
+      >
+        <SendIcon className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex h-full">
       {/* ------- specialist task board ------- */}
@@ -330,77 +408,10 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
         </div>
 
         <div ref={feedRef} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3">
-          {plan.map((s) => {
-            const role = ROLES[s.role];
-            return (
-              <div
-                key={s.id}
-                className={`step-in flex items-start gap-2.5 rounded-lg border px-2.5 py-2 transition-colors ${
-                  s.state === "run" ? "border-line2 bg-panel2" : "border-line/60 bg-panel/50"
-                }`}
-              >
-                <span
-                  className="mt-px flex h-6 w-9 shrink-0 items-center justify-center rounded border font-mono text-[9px] font-bold tracking-wider"
-                  style={{ color: role.color, borderColor: role.color + "55", background: role.color + "12" }}
-                >
-                  {role.short}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className={`block text-[12.5px] leading-snug ${s.state === "wait" ? "text-faint" : "text-text"}`}>
-                    {s.label}
-                  </span>
-                  {s.produces && (
-                    <span className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] text-faint">
-                      <FileIcon className="h-2.5 w-2.5" />
-                      {s.produces}
-                    </span>
-                  )}
-                </span>
-                <span className="mt-1 shrink-0">
-                  {s.state === "done" ? (
-                    <CheckIcon className="h-3.5 w-3.5 text-mint" />
-                  ) : s.state === "run" ? (
-                    <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line2 border-t-brand" />
-                  ) : (
-                    <span className="block h-2 w-2 translate-x-[3px] rounded-full border border-line2" />
-                  )}
-                </span>
-              </div>
-            );
-          })}
-
-          {project.status === "ready" && (
-            <div className="step-in mt-2 rounded-xl border border-line bg-panel px-3 py-2.5 text-[12px] leading-relaxed text-dim">
-              Done — try <b className="text-brand">Preview</b>, or ask for a tweak below.
-            </div>
-          )}
+          {feedRows}
         </div>
 
-        <div className="border-t border-line p-3">
-          <div className="flex items-end gap-2 rounded-xl border border-line bg-panel2 p-2">
-            <textarea
-              value={follow}
-              onChange={(e) => setFollow(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  applyFollowUp();
-                }
-              }}
-              rows={1}
-              placeholder={project.status === "ready" ? "Ask the crew for a change…" : "The crew is working…"}
-              disabled={project.status !== "ready"}
-              className="flex-1 resize-none bg-transparent px-1.5 py-1 text-[13px] outline-none placeholder:text-faint disabled:opacity-50"
-            />
-            <button
-              onClick={applyFollowUp}
-              disabled={!follow.trim() || project.status !== "ready"}
-              className="btn-brand flex h-8 w-8 shrink-0 items-center justify-center rounded-lg disabled:opacity-30"
-            >
-              <SendIcon className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
+        <div className="border-t border-line p-3">{followBox()}</div>
       </div>
 
       {/* ------- workspace ------- */}
@@ -416,15 +427,27 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold transition-all sm:px-3 ${
                 tab === t.id ? "bg-brand/12 text-brand" : "text-dim hover:bg-panel2 hover:text-text"
               }`}
             >
               <t.icon className="h-3.5 w-3.5" />
-              {t.label}
+              <span className="max-sm:hidden">{t.label}</span>
             </button>
           ))}
           <div className="ml-auto flex items-center gap-1.5">
+            {/* mobile: crew plan lives in a bottom sheet */}
+            <button
+              onClick={() => setShowPlan(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-gold/12 px-2.5 py-1.5 text-[12px] font-bold text-gold transition-all hover:bg-gold/20 md:hidden"
+              title="Crew plan"
+            >
+              <CheckIcon className="h-3.5 w-3.5" />
+              Plan
+              <span className="font-mono text-[10px] opacity-80">
+                {plan.filter((s) => s.state === "done").length}/{plan.length || "…"}
+              </span>
+            </button>
             {tab === "preview" && (
               <>
                 <button className="icon-btn" onClick={() => setPreviewKey((k) => k + 1)} title="Reload preview">
@@ -438,7 +461,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
             {project.status === "ready" && (
               <button
                 onClick={() => patchProject(project.id, (p) => ({ ...p, status: "building", files: [] }))}
-                className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-dim transition-all hover:border-brand/45 hover:text-brand"
+                className="hidden items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-dim transition-all hover:border-brand/45 hover:text-brand sm:flex"
                 title="Rebuild the project from scratch"
               >
                 <RefreshIcon className="h-3.5 w-3.5" /> Rebuild
@@ -448,8 +471,31 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
         </div>
 
         {tab === "code" && (
-          <div className="flex min-h-0 flex-1">
-            <div className="w-[190px] shrink-0 overflow-y-auto border-r border-line bg-panel/50 p-2">
+          <div className="flex min-h-0 flex-1 flex-col">
+            {/* mobile: horizontal file chips */}
+            <div className="chips-scroll flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-line bg-panel/50 px-3 py-2 md:hidden">
+              {project.files.length === 0 ? (
+                <span className="font-mono text-[10.5px] text-faint">specialists are writing files…</span>
+              ) : (
+                project.files.map((f, i) => (
+                  <button
+                    key={f.name}
+                    onClick={() => setFileIdx(i)}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10.5px] transition-all ${
+                      i === Math.min(fileIdx, project.files.length - 1)
+                        ? "border-brand/50 bg-brand/12 text-brand"
+                        : "border-line text-dim"
+                    }`}
+                  >
+                    <FileIcon className="h-3 w-3" />
+                    {f.name}
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="flex min-h-0 flex-1">
+            <div className="hidden w-[190px] shrink-0 overflow-y-auto border-r border-line bg-panel/50 p-2 md:block">
               <p className="px-2 pb-1.5 pt-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-faint">Files</p>
               {project.files.length === 0 && (
                 <p className="px-2 py-3 text-[11.5px] text-faint">Specialists are writing files…</p>
@@ -494,6 +540,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                 </div>
               )}
             </div>
+            </div>
           </div>
         )}
 
@@ -526,6 +573,30 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
           </div>
         )}
       </div>
+
+      {/* mobile: crew plan bottom sheet */}
+      {showPlan && (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+          <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={() => setShowPlan(false)} />
+          <div className="sheet-in absolute inset-x-2 bottom-2 flex max-h-[78vh] flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-2xl">
+            <div className="flex items-center gap-2 border-b border-line px-4 py-3">
+              <BrandMark className="h-5 w-5" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-bold">{project.name}</p>
+                <p className="font-mono text-[10px] text-faint">
+                  {plan.filter((s) => s.state === "done").length}/{plan.length || "…"} subtasks ·{" "}
+                  {project.status === "ready" ? <span className="text-mint">ready</span> : <span className="text-gold">in progress</span>}
+                </p>
+              </div>
+              <button onClick={() => setShowPlan(false)} className="icon-btn" title="Close" aria-label="Close plan">
+                <XIcon className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-3">{feedRows}</div>
+            <div className="border-t border-line p-3">{followBox(true)}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
