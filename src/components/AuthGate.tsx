@@ -14,8 +14,16 @@ const GEN_STEPS = [
   "identity sealed — keys never leave this device",
 ];
 
-export default function AuthGate({ onReady }: { onReady: (id: Identity) => void }) {
-  const [phase, setPhase] = useState<Phase>("idle");
+export default function AuthGate({
+  onReady,
+  initial = "idle",
+  onBack,
+}: {
+  onReady: (id: Identity) => void;
+  initial?: "idle" | "import";
+  onBack?: () => void;
+}) {
+  const [phase, setPhase] = useState<Phase>(initial);
   const [log, setLog] = useState<string[]>([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [importText, setImportText] = useState("");
@@ -77,6 +85,14 @@ export default function AuthGate({ onReady }: { onReady: (id: Identity) => void 
       </div>
 
       <div className="anim-rise relative w-full max-w-[520px] py-8">
+        {onBack && phase !== "generating" && (
+          <button
+            onClick={onBack}
+            className="mb-4 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-faint transition-colors hover:text-text"
+          >
+            ← back to aide
+          </button>
+        )}
         {/* brand */}
         <div className="mb-6 flex items-center gap-3">
           <span className="floaty">
@@ -142,7 +158,8 @@ export default function AuthGate({ onReady }: { onReady: (id: Identity) => void 
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => {
-                      setPhase("idle");
+                      if (onBack) onBack();
+                      else setPhase("idle");
                       setError("");
                     }}
                     className="row-hl flex-1 rounded-xl border border-line py-2.5 text-[13px] font-bold text-dim hover:text-text"

@@ -16,6 +16,7 @@ import {
   PanelLeftIcon, DotsIcon, PenIcon, TranslateIcon,
 } from "./components/Icons";
 import AuthGate from "./components/AuthGate";
+import Landing from "./components/Landing";
 import { shortDid, identityBackup, didHue, type Identity } from "./lib/did";
 
 type Mode = "chat" | "coder" | "translate";
@@ -69,8 +70,10 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "chat" | "project" | "identity"; id: string; name: string } | null>(null);
   const [profileMenu, setProfileMenu] = useState(false);
 
-  /* DID identity (gate) */
+  /* DID identity (gate): landing → auth → app */
   const [identity, setIdentity] = useState<Identity | null>(() => load<Identity | null>("identity", null));
+  const [gate, setGate] = useState<"landing" | "auth">("landing");
+  const [authPhase, setAuthPhase] = useState<"idle" | "import">("idle");
 
   /* live model catalog, fetched from provider APIs */
   const [catalog, setCatalog] = useState<LiveCatalog>(() => load<LiveCatalog>("catalog", {}));
@@ -661,9 +664,29 @@ export default function App() {
     </div>
   );
 
-  /* ---------- DID gate ---------- */
+  /* ---------- DID gate: landing → auth → app ---------- */
   if (!identity) {
-    return <AuthGate onReady={(id) => setIdentity(id)} />;
+    if (gate === "landing") {
+      return (
+        <Landing
+          onStart={() => {
+            setAuthPhase("idle");
+            setGate("auth");
+          }}
+          onRestore={() => {
+            setAuthPhase("import");
+            setGate("auth");
+          }}
+        />
+      );
+    }
+    return (
+      <AuthGate
+        initial={authPhase}
+        onBack={() => setGate("landing")}
+        onReady={(id) => setIdentity(id)}
+      />
+    );
   }
 
   return (
