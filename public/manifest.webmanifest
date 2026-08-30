@@ -1,0 +1,17 @@
+{
+  "name": "AiDe — AI Studio & Coder",
+  "short_name": "AiDe",
+  "description": "Chat with free AI providers and build working apps from a single sentence.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#131316",
+  "theme_color": "#131316",
+  "categories": ["productivity", "developer", "utilities"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
