@@ -9,7 +9,35 @@ import ModelPicker from "./ModelPicker";
 import {
   BrandMark, SendIcon, StopIcon, CopyIcon, CheckIcon, RefreshIcon,
   BrainIcon, GlobeIcon, SearchIcon, CodeIcon, BulbIcon, PenIcon, ChartIcon,
+  SpeakerIcon,
 } from "./Icons";
+
+/* ---------- text-to-speech helpers (Web Speech API) ---------- */
+
+/** Strip markdown/code so the spoken version sounds natural. */
+function speakable(src: string): string {
+  return src
+    .replace(/```[\s\S]*?```/g, " Code block omitted. ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/[*_~]+/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+const hasCyrillic = (t: string) => /[а-яіїєґА-ЯІЇЄҐ]/.test(t);
+
+function pickVoice(voices: SpeechSynthesisVoice[], lang: string): SpeechSynthesisVoice | undefined {
+  const short = lang.slice(0, 2).toLowerCase();
+  return (
+    voices.find((v) => v.lang.toLowerCase().startsWith(short) && /google|natural|premium/i.test(v.name)) ??
+    voices.find((v) => v.lang.toLowerCase().startsWith(short)) ??
+    voices[0]
+  );
+}
 
 const PERSONA =
   "You are AiDe, a helpful AI assistant. Answer in English, concise and to the point, using markdown formatting and code blocks where appropriate.";
@@ -36,6 +64,7 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
   const [thinking, setThinking] = useState(false);
   const [search, setSearch] = useState(false);
   const [deep, setDeep] = useState(false);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const stopRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -45,6 +74,35 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [conv.messages]);
+
+  /* ---------- voice ---------- */
+  const stopSpeaking = () => {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setSpeakingId(null);
+  };
+
+  const speak = (id: string, text: string) => {
+    if (!("speechSynthesis" in window)) return;
+    if (speakingId === id) {
+      stopSpeaking();
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(speakable(text).slice(0, 1200));
+    const lang = hasCyrillic(text) ? "uk-UA" : "en-US";
+    u.lang = lang;
+    const voice = pickVoice(window.speechSynthesis.getVoices(), lang);
+    if (voice) u.voice = voice;
+    u.rate = 1;
+    u.pitch = 1;
+    u.onend = () => setSpeakingId(null);
+    u.onerror = () => setSpeakingId(null);
+    setSpeakingId(id);
+    window.speechSynthesis.speak(u);
+  };
+
+  /* cancel speech on unmount */
+  useEffect(() => () => stopSpeaking(), []);
 
   const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs, catalog) : getModelInfo(modelId);
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
@@ -175,6 +233,8 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
                 isLast={mi === conv.messages.length - 1}
                 canRegenerate={mi > lastUserIdx}
                 onRegenerate={regenerate}
+                speaking={speakingId === m.id}
+                onSpeak={() => speak(m.id, m.content)}
               />
             ))}
           </div>
@@ -202,15 +262,15 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
             className="block w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed outline-none placeholder:text-faint"
           />
           <div className="mt-2 flex items-center gap-1.5">
-            <div className="ml-auto flex items-center gap-1.5">
-              <button className={`chip-mode ${thinking ? "on" : ""}`} onClick={() => setThinking((v) => !v)}>
+            <div className="chips-scroll ml-auto flex items-center gap-1.5 overflow-x-auto">
+              <button className={`chip-mode shrink-0 ${thinking ? "on" : ""}`} onClick={() => setThinking((v) => !v)}>
                 <BrainIcon className="h-3.5 w-3.5" /> Think
               </button>
-              <button className={`chip-mode max-sm:hidden ${search ? "on" : ""}`} onClick={() => setSearch((v) => !v)}>
+              <button className={`chip-mode shrink-0 ${search ? "on" : ""}`} onClick={() => setSearch((v) => !v)}>
                 <GlobeIcon className="h-3.5 w-3.5" /> Search
               </button>
-              <button className={`chip-mode max-md:hidden ${deep ? "on" : ""}`} onClick={() => setDeep((v) => !v)}>
-                <SearchIcon className="h-3.5 w-3.5" /> Deep Research
+              <button className={`chip-mode shrink-0 ${deep ? "on" : ""}`} onClick={() => setDeep((v) => !v)}>
+                <SearchIcon className="h-3.5 w-3.5" /> <span className="whitespace-nowrap">Deep Research</span>
               </button>
               {busy ? (
                 <button
@@ -261,12 +321,16 @@ function MessageRow({
   isLast,
   canRegenerate,
   onRegenerate,
+  speaking,
+  onSpeak,
 }: {
   m: ChatMessage;
   busy: boolean;
   isLast: boolean;
   canRegenerate: boolean;
   onRegenerate: () => void;
+  speaking: boolean;
+  onSpeak: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const streaming = busy && isLast && m.role === "assistant";
@@ -304,7 +368,20 @@ function MessageRow({
         {streaming && m.content && <span className="caret" />}
 
         {!streaming && m.content && !m.error && (
-          <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="mt-2 flex items-center gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+            <button
+              onClick={onSpeak}
+              className={`icon-btn h-7 w-7 ${speaking ? "speaking-ring text-violet3" : ""}`}
+              title={speaking ? "Stop reading" : "Read aloud"}
+            >
+              {speaking ? (
+                <span className="speaking-bars text-violet3" aria-label="speaking">
+                  <i /><i /><i /><i />
+                </span>
+              ) : (
+                <SpeakerIcon className="h-3.5 w-3.5" />
+              )}
+            </button>
             <button
               onClick={() => {
                 navigator.clipboard?.writeText(m.content).catch(() => {});
@@ -321,7 +398,7 @@ function MessageRow({
                 <RefreshIcon className="h-3.5 w-3.5" />
               </button>
             )}
-            <span className="ml-1 font-mono text-[10.5px] text-faint">
+            <span className="ml-1 hidden font-mono text-[10.5px] text-faint sm:inline">
               {m.modelId ? getModelInfo(m.modelId).name : ""} · ~{m.tokens ?? "—"} tok
             </span>
           </div>

@@ -262,6 +262,15 @@ export const PlayIcon = (p: IP) => (
   </S>
 );
 
+export const ListIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M8.5 6h12M8.5 12h12M8.5 18h12" />
+    <circle cx="4" cy="6" r="0.8" fill="currentColor" />
+    <circle cx="4" cy="12" r="0.8" fill="currentColor" />
+    <circle cx="4" cy="18" r="0.8" fill="currentColor" />
+  </S>
+);
+
 export const KeyIcon = (p: IP) => (
   <S {...p}>
     <circle cx="8" cy="14" r="4.5" />

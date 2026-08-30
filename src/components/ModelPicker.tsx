@@ -90,7 +90,10 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
       </button>
 
       {open && (
-        <div className="anim-rise absolute left-0 top-full z-50 mt-2 flex w-[420px] max-w-[92vw] flex-col overflow-hidden rounded-2xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.75)]">
+        <>
+        {/* mobile backdrop */}
+        <div className="backdrop-in fixed inset-0 z-40 bg-ink/60 md:hidden" onClick={() => setOpen(false)} />
+        <div className="sheet-in fixed inset-x-2 bottom-2 z-50 flex max-h-[70vh] flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.85)] md:absolute md:inset-auto md:left-0 md:top-full md:mt-2 md:w-[420px] md:max-w-[92vw] md:rounded-2xl anim-rise">
           <div className="flex items-center justify-between border-b border-line/70 px-4 py-2.5">
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">models · fetched live</span>
             <button
@@ -237,6 +240,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
             })}
           </div>
         </div>
+        </>
       )}
     </div>
   );

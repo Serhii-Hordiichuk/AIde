@@ -251,6 +251,78 @@ body {
   background: repeating-linear-gradient(0deg, transparent 0 2px, #ffffff04 2px 4px);
 }
 
+/* bottom sheet (mobile drawers / pickers) */
+.sheet-in {
+  animation: sheetIn 0.32s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+@keyframes sheetIn {
+  from {
+    opacity: 0.4;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* TTS speaking indicator */
+.speaking-ring {
+  position: relative;
+}
+.speaking-ring::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 1.5px solid #8b7cffaa;
+  animation: ringPulse 1.3s ease-out infinite;
+}
+.speaking-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+.speaking-bars i {
+  width: 2.5px;
+  border-radius: 2px;
+  background: currentColor;
+  animation: barEq 0.9s ease-in-out infinite;
+}
+.speaking-bars i:nth-child(1) {
+  height: 5px;
+}
+.speaking-bars i:nth-child(2) {
+  height: 10px;
+  animation-delay: 0.15s;
+}
+.speaking-bars i:nth-child(3) {
+  height: 7px;
+  animation-delay: 0.3s;
+}
+.speaking-bars i:nth-child(4) {
+  height: 11px;
+  animation-delay: 0.45s;
+}
+@keyframes barEq {
+  0%,
+  100% {
+    transform: scaleY(0.5);
+  }
+  50% {
+    transform: scaleY(1.15);
+  }
+}
+
+/* horizontal chip scroller (mobile) — no visible scrollbar */
+.chips-scroll {
+  scrollbar-width: none;
+}
+.chips-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .step-in {
   animation: stepIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
