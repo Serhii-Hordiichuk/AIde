@@ -44,29 +44,34 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           REPO="${{ github.repository }}"
-          BUILD_TYPE="$(gh api "repos/$REPO/pages" --jq .build_type 2>/dev/null || echo none)"
 
-          if [ "$BUILD_TYPE" = "workflow" ]; then
-            echo "✅ Pages already enabled (source: GitHub Actions)"
-            exit 0
-          fi
+          # Detect current Pages config. A 404 (not enabled) yields an empty value.
+          RESP="$(gh api "repos/$REPO/pages" 2>/dev/null || true)"
+          BUILD_TYPE="$(printf '%s' "$RESP" | jq -r '.build_type // empty' 2>/dev/null || true)"
 
-          if [ "$BUILD_TYPE" = "none" ]; then
-            echo "ℹ️ Pages not enabled yet — enabling via API…"
-          else
-            echo "ℹ️ Pages uses legacy source ($BUILD_TYPE) — switching to GitHub Actions…"
-          fi
+          case "$BUILD_TYPE" in
+            workflow)
+              echo "✅ Pages already enabled (source: GitHub Actions)"
+              exit 0
+              ;;
+            "")
+              echo "ℹ️ Pages not enabled yet — trying to enable via API…"
+              ;;
+            *)
+              echo "ℹ️ Pages uses legacy source '$BUILD_TYPE' — switching to GitHub Actions…"
+              ;;
+          esac
 
-          if gh api -X POST "repos/$REPO/pages" -f build_type=workflow >/dev/null 2>&1 \
-             || gh api -X PUT "repos/$REPO/pages" -f build_type=workflow >/dev/null 2>&1; then
+          if gh api -X POST "repos/$REPO/pages" -f build_type=workflow >/dev/null 2>&1; then
             echo "✅ GitHub Pages enabled"
           else
             echo ""
-            echo "::error::Could not enable Pages automatically (token is read-only)."
-            echo "::error::Do ONE of these once, then re-run this workflow:"
-            echo "::error::  A) https://github.com/$REPO/settings/actions  →  'Workflow permissions'  →  select 'Read and write permissions'  →  Save."
-            echo "::error::  B) https://github.com/$REPO/settings/pages  →  'Build and deployment'  →  Source: 'GitHub Actions'."
-            echo "::error::Then open the Actions tab and click 'Re-run all jobs'."
+            echo "::error::The workflow token is read-only, so Pages can't be enabled automatically."
+            echo "::error::Do this ONE time, then re-run the workflow:"
+            echo "::error::  1. Open https://github.com/$REPO/settings/pages"
+            echo "::error::  2. Under 'Build and deployment' → Source → select 'GitHub Actions' → Save"
+            echo "::error::  3. Go to the Actions tab and click 'Re-run all jobs'"
+            echo "::error::(Alternative: Settings → Actions → General → Workflow permissions → 'Read and write permissions' → Save)"
             exit 1
           fi
 
