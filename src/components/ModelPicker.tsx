@@ -66,11 +66,11 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative min-w-0">
       {/* trigger */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="row-hl flex max-w-[300px] items-center gap-2 rounded-xl px-2.5 py-2 text-[14px] font-extrabold text-text transition-all"
+        className="row-hl flex max-w-[min(300px,44vw)] items-center gap-2 rounded-xl px-2.5 py-2 text-[14px] font-extrabold text-text transition-all"
         title="Change model"
       >
         {auto ? (
@@ -93,7 +93,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
         <>
         {/* mobile backdrop */}
         <div className="backdrop-in fixed inset-0 z-40 bg-ink/60 md:hidden" onClick={() => setOpen(false)} />
-        <div className="sheet-in fixed inset-x-2 bottom-2 z-50 flex max-h-[70vh] flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.85)] md:absolute md:inset-auto md:left-0 md:top-full md:mt-2 md:w-[420px] md:max-w-[92vw] md:rounded-2xl anim-rise">
+        <div className="md-picker-pop sheet-in fixed inset-x-2 bottom-2 z-50 flex max-h-[70vh] flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.85)] md:absolute md:inset-auto md:left-0 md:top-full md:mt-2 md:w-[420px] md:max-w-[92vw] md:rounded-2xl">
           <div className="flex items-center justify-between border-b border-line/70 px-4 py-2.5">
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">models · fetched live</span>
             <button

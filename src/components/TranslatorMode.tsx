@@ -141,7 +141,7 @@ function LangSelect({
   accent: string;
 }) {
   return (
-    <label className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-panel px-3 py-2 ${accent}`}>
+    <label className={`flex min-w-[132px] flex-1 items-center gap-2 rounded-xl border border-line bg-panel px-3 py-2 ${accent}`}>
       <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-faint">{label}</span>
       <select
         value={value}
@@ -272,7 +272,7 @@ function TextPanel({
   return (
     <div className="mx-auto w-full max-w-[1100px] px-4 py-5">
       {/* language bar */}
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <LangSelect value={langs.src} onChange={(v) => setLangs((l: typeof langs) => ({ ...l, src: v }))} withAuto label="from" accent="" />
         <button
           onClick={swap}
@@ -507,7 +507,7 @@ function ConvoPanel({
   return (
     <div className="mx-auto flex h-full max-h-full w-full max-w-[760px] flex-col px-4 py-4">
       {/* pair bar */}
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <LangSelect value={pair.a} onChange={(v) => setPair((p: typeof pair) => ({ ...p, a: v }))} label="side a" accent="border-cyanic/40" />
         <button
           onClick={() => setPair((p: typeof pair) => ({ a: p.b, b: p.a }))}
@@ -667,7 +667,7 @@ function DocPanel({ translate }: { translate: (t: string, to: string, s?: AbortS
 
   return (
     <div className="mx-auto w-full max-w-[900px] px-4 py-5">
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <LangSelect value={langs.src} onChange={(v) => setLangs((l: typeof langs) => ({ ...l, src: v }))} withAuto label="from" accent="" />
         <LangSelect value={langs.tgt} onChange={(v) => setLangs((l: typeof langs) => ({ ...l, tgt: v }))} label="to" accent="border-cyanic/40" />
       </div>

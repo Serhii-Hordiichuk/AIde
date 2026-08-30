@@ -277,7 +277,7 @@ export default function App() {
 
   /* ---------- shared sidebar content ---------- */
   const sidebar = (isDrawer: boolean) => (
-    <div className={`flex h-full flex-col bg-panel ${isDrawer ? "w-[280px]" : "w-[260px]"}`}>
+    <div className={`flex h-full flex-col bg-panel ${isDrawer ? "w-[280px] max-w-[85vw]" : "w-[260px]"}`}>
       {/* header */}
       <div className="flex items-center gap-2.5 px-4 py-4">
         <BrandMark className="h-8 w-8 shrink-0" />
@@ -700,7 +700,7 @@ export default function App() {
       {/* main */}
       <main className="flex min-w-0 flex-1 flex-col">
         {/* top bar */}
-        <header className="flex h-[54px] shrink-0 items-center gap-1.5 px-3.5">
+        <header className="flex h-[54px] min-w-0 shrink-0 items-center gap-1.5 px-2 sm:px-3.5">
           <ModelPicker
             modelId={modelId}
             onChange={setModelId}
