@@ -4,6 +4,9 @@ import {
   type Identity,
 } from "../lib/did";
 import { BrandMark, Wordmark, CheckIcon, CopyIcon, KeyIcon, BoltIcon } from "./Icons";
+import { ThemeToggle, LangPicker } from "./Appearance";
+import { useI18n } from "../lib/i18n";
+import type { ThemeMode } from "../lib/theme";
 
 type Phase = "idle" | "generating" | "ready" | "import";
 
@@ -18,11 +21,14 @@ export default function AuthGate({
   onReady,
   initial = "idle",
   onBack,
+  theme,
 }: {
   onReady: (id: Identity) => void;
   initial?: "idle" | "import";
   onBack?: () => void;
+  theme: { mode: ThemeMode; setMode: (m: ThemeMode) => void };
 }) {
+  const { t } = useI18n();
   const [phase, setPhase] = useState<Phase>(initial);
   const [log, setLog] = useState<string[]>([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -84,13 +90,19 @@ export default function AuthGate({
         <div className="tint tint-gold" />
       </div>
 
+      {/* floating appearance controls */}
+      <div className="absolute right-4 top-4 z-20 flex items-center gap-1.5">
+        <LangPicker compact />
+        <ThemeToggle mode={theme.mode} setMode={theme.setMode} />
+      </div>
+
       <div className="anim-rise relative w-full max-w-[520px] py-8">
         {onBack && phase !== "generating" && (
           <button
             onClick={onBack}
             className="mb-4 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-faint transition-colors hover:text-text"
           >
-            ← back to aide
+            ← {t("auth.backToSite")}
           </button>
         )}
         {/* brand */}
@@ -126,7 +138,7 @@ export default function AuthGate({
                 </p>
                 <button onClick={create} className="btn-brand mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-extrabold">
                   <BoltIcon className="h-4 w-4" />
-                  Create DID identity
+                  {t("auth.createDid")}
                 </button>
                 <button
                   onClick={() => {
@@ -136,7 +148,7 @@ export default function AuthGate({
                   className="row-hl mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-line py-2.5 text-[13px] font-bold text-dim hover:text-text"
                 >
                   <KeyIcon className="h-4 w-4" />
-                  Restore from backup
+                  {t("auth.restore")}
                 </button>
               </div>
             )}
@@ -171,7 +183,7 @@ export default function AuthGate({
                     disabled={!importText.trim()}
                     className="btn-brand flex-1 rounded-xl py-2.5 text-[13px] font-extrabold disabled:opacity-35 disabled:saturate-50"
                   >
-                    Verify &amp; enter
+                    {t("auth.verify")}
                   </button>
                 </div>
               </div>
@@ -219,7 +231,7 @@ export default function AuthGate({
                 </div>
 
                 <button onClick={() => onReady(identity)} className="btn-brand mt-2 w-full rounded-xl py-3 text-[14px] font-extrabold">
-                  Enter AiDe →
+                  {t("auth.enter")} →
                 </button>
               </div>
             )}

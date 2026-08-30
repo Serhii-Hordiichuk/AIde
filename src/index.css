@@ -1,28 +1,85 @@
 @import "tailwindcss";
 
-@theme {
-  --color-bg: #131316;
-  --color-panel: #17171b;
-  --color-panel2: #1d1d22;
-  --color-panel3: #24242b;
-  --color-ink: #0d0d10;
-  --color-line: #ffffff14;
-  --color-line2: #ffffff24;
-  --color-violet: #615ced;
-  --color-violet2: #8b7cff;
-  --color-violet3: #b7a9ff;
-  --color-brand: #8b7cff;
-  --color-text: #ececf1;
-  --color-dim: #a5a5b1;
-  --color-faint: #71717d;
-  --color-mint: #3ecf8e;
-  --color-gold: #ffc24b;
-  --color-coral: #ff6b6b;
-  --color-cyanic: #58c4dd;
+/* ---------- theme palettes (dark default, light via [data-theme]) ---------- */
+:root,
+:root[data-theme="dark"] {
+  --t-bg: #131316;
+  --t-panel: #17171b;
+  --t-panel2: #1d1d22;
+  --t-panel3: #24242b;
+  --t-ink: #0d0d10;
+  --t-line: #ffffff14;
+  --t-line2: #ffffff24;
+  --t-violet: #615ced;
+  --t-violet2: #8b7cff;
+  --t-violet3: #b7a9ff;
+  --t-text: #ececf1;
+  --t-dim: #a5a5b1;
+  --t-faint: #71717d;
+  --t-mint: #3ecf8e;
+  --t-gold: #ffc24b;
+  --t-coral: #ff6b6b;
+  --t-cyanic: #58c4dd;
+  --t-shadow: rgba(0, 0, 0, 0.55);
+  --t-glow-a: #615ced0e;
+  --t-glow-b: #58c4dd0a;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --t-bg: #f3f4f8;
+  --t-panel: #ffffff;
+  --t-panel2: #ebeef4;
+  --t-panel3: #dfe3ec;
+  --t-ink: #171a21;
+  --t-line: #10182814;
+  --t-line2: #10182824;
+  --t-violet: #5a4fe0;
+  --t-violet2: #6f5df0;
+  --t-violet3: #5a47d6;
+  --t-text: #181a20;
+  --t-dim: #5b5f6c;
+  --t-faint: #8f93a0;
+  --t-mint: #12996b;
+  --t-gold: #c07f10;
+  --t-coral: #e5484d;
+  --t-cyanic: #0e8fb0;
+  --t-shadow: rgba(16, 24, 40, 0.14);
+  --t-glow-a: #615ced12;
+  --t-glow-b: #58c4dd10;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--t-bg);
+  --color-panel: var(--t-panel);
+  --color-panel2: var(--t-panel2);
+  --color-panel3: var(--t-panel3);
+  --color-ink: var(--t-ink);
+  --color-line: var(--t-line);
+  --color-line2: var(--t-line2);
+  --color-violet: var(--t-violet);
+  --color-violet2: var(--t-violet2);
+  --color-violet3: var(--t-violet3);
+  --color-brand: var(--t-violet2);
+  --color-text: var(--t-text);
+  --color-dim: var(--t-dim);
+  --color-faint: var(--t-faint);
+  --color-mint: var(--t-mint);
+  --color-gold: var(--t-gold);
+  --color-coral: var(--t-coral);
+  --color-cyanic: var(--t-cyanic);
 
   --font-sans: "Manrope", "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --font-display: "Unbounded", "Manrope", sans-serif;
+}
+
+/* smooth theme swap */
+html.theme-anim,
+html.theme-anim body,
+html.theme-anim *:not(svg):not(path):not(rect):not(circle) {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }
 
 html,
