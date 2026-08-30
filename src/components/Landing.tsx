@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { PROVIDERS } from "../data/providers";
 import { BrandMark, Wordmark, ChatIcon, CodeIcon, TranslateIcon, KeyIcon, CheckIcon, GlobeIcon, MicIcon, BoltIcon } from "./Icons";
+import { ThemeToggle, LangPicker } from "./Appearance";
+import { useI18n } from "../lib/i18n";
+import type { ThemeMode } from "../lib/theme";
 
 /* =================================================================
    Landing page — shown to everyone without a DID identity.
@@ -11,6 +14,7 @@ import { BrandMark, Wordmark, ChatIcon, CodeIcon, TranslateIcon, KeyIcon, CheckI
 interface Props {
   onStart: () => void;   // register → enter app
   onRestore: () => void; // sign in with backup
+  theme: { mode: ThemeMode; setMode: (m: ThemeMode) => void };
 }
 
 const SCENES = [
@@ -66,7 +70,8 @@ const FAQS = [
   },
 ];
 
-export default function Landing({ onStart, onRestore }: Props) {
+export default function Landing({ onStart, onRestore, theme }: Props) {
+  const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
 
   /* scroll reveals */
@@ -110,15 +115,17 @@ export default function Landing({ onStart, onRestore }: Props) {
             <a href="#privacy" className="transition-colors hover:text-text">Privacy</a>
             <a href="#faq" className="transition-colors hover:text-text">FAQ</a>
           </nav>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1.5">
+            <LangPicker compact />
+            <ThemeToggle mode={theme.mode} setMode={theme.setMode} />
             <button
               onClick={onRestore}
-              className="rounded-xl px-3.5 py-2 text-[13px] font-bold text-dim transition-colors hover:text-text"
+              className="ml-1 rounded-xl px-3 py-2 text-[13px] font-bold text-dim transition-colors hover:text-text"
             >
-              Sign in
+              {t("auth.restore")}
             </button>
             <button onClick={onStart} className="btn-brand rounded-xl px-4 py-2 text-[13px] font-extrabold">
-              Get started
+              {t("land.ctaStart")}
             </button>
           </div>
         </div>

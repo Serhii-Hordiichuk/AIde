@@ -18,6 +18,8 @@ import {
 import AuthGate from "./components/AuthGate";
 import Landing from "./components/Landing";
 import { shortDid, identityBackup, didHue, type Identity } from "./lib/did";
+import { useI18n, LANG_OPTIONS } from "./lib/i18n";
+import { useTheme, type ThemeMode } from "./lib/theme";
 
 type Mode = "chat" | "coder" | "translate";
 
@@ -39,6 +41,9 @@ function groupLabel(ts: number): (typeof GROUP_ORDER)[number] {
 }
 
 export default function App() {
+  const { t, lang, setLang } = useI18n();
+  const theme = useTheme();
+
   const [mode, setMode] = useState<Mode>(() => load<Mode>("mode", "chat"));
   const [sideOpen, setSideOpen] = useState(() => load("sideOpen", true));
   const [mobileSide, setMobileSide] = useState(false);
@@ -669,6 +674,7 @@ export default function App() {
     if (gate === "landing") {
       return (
         <Landing
+          theme={theme}
           onStart={() => {
             setAuthPhase("idle");
             setGate("auth");
@@ -683,6 +689,7 @@ export default function App() {
     return (
       <AuthGate
         initial={authPhase}
+        theme={theme}
         onBack={() => setGate("landing")}
         onReady={(id) => setIdentity(id)}
       />

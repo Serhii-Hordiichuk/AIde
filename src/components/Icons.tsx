@@ -189,6 +189,26 @@ export const RefreshIcon = (p: IP) => (
   </S>
 );
 
+export const SunIcon = (p: IP) => (
+  <S {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4" />
+  </S>
+);
+
+export const MoonIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" />
+  </S>
+);
+
+export const MonitorIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="3" y="4.5" width="18" height="12.5" rx="2" />
+    <path d="M9 21h6M12 17v4" />
+  </S>
+);
+
 export const GlobeIcon = (p: IP) => (
   <S {...p}>
     <circle cx="12" cy="12" r="8.5" />
