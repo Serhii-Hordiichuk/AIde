@@ -8,16 +8,17 @@ import {
 import { fetchProviderModels, freshEntries, type LiveCatalog } from "./lib/modelFetch";
 import ChatMode from "./components/ChatMode";
 import CoderMode from "./components/CoderMode";
+import TranslatorMode from "./components/TranslatorMode";
 import ModelPicker from "./components/ModelPicker";
 import {
   BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon,
   KeyIcon, ChatIcon, CodeIcon, CheckIcon, CopyIcon,
-  PanelLeftIcon, DotsIcon, PenIcon,
+  PanelLeftIcon, DotsIcon, PenIcon, TranslateIcon,
 } from "./components/Icons";
 import AuthGate from "./components/AuthGate";
 import { shortDid, identityBackup, didHue, type Identity } from "./lib/did";
 
-type Mode = "chat" | "coder";
+type Mode = "chat" | "coder" | "translate";
 
 function fmtTok(n: number): string {
   if (n >= 1000) return (n / 1000).toFixed(1) + "k";
@@ -714,6 +715,7 @@ export default function App() {
               [
                 { id: "chat", label: "Chat", icon: ChatIcon },
                 { id: "coder", label: "Coder", icon: CodeIcon },
+                { id: "translate", label: "Translate", icon: TranslateIcon },
               ] as const
             ).map((m) => (
               <button
@@ -743,7 +745,7 @@ export default function App() {
                 onModel={setModelId}
               />
             )
-          ) : (
+          ) : mode === "coder" ? (
             <CoderMode
               project={activeProject}
               patchProject={patchProject}
@@ -752,6 +754,8 @@ export default function App() {
               catalog={catalog}
               modelId={modelId}
             />
+          ) : (
+            <TranslatorMode cfgs={cfgs} catalog={catalog} modelId={modelId} />
           )}
         </div>
 
