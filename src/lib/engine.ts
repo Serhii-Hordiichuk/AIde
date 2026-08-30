@@ -1,5 +1,5 @@
 import { streamChat } from "./llm";
-import { modelById } from "../data/models";
+import { getModelInfo } from "../data/models";
 import { providerById } from "../data/providers";
 import type { ProviderCfg, ProjectFile } from "./store";
 import { pickTemplate, deriveName } from "./templates";
@@ -25,7 +25,16 @@ export function scaffoldProject(desc: string): ScaffoldResult {
 }
 
 const LLM_PROMPT = (desc: string) =>
-  `You are a senior frontend engineer. Create ONE self-contained web app (a single HTML file with <style> and <script> inside) for the brief below. UI in English, modern minimal design, everything must work immediately. Return ONLY one \`\`\`html code block with no text before or after.\n\nBrief: ${desc}`;
+  `You are a senior product designer + frontend engineer. Build ONE self-contained web app (single HTML file, <style> and <script> inside) for the brief below.
+
+Hard requirements:
+- The design must be UNIQUE to this brief: derive the app name, color palette, typography and copy from the topic. Never reuse a generic template look.
+- UI in English. Realistic, on-topic content (no lorem ipsum).
+- Everything must work immediately when the file is opened: interactivity via vanilla JS, state where it makes sense (localStorage OK).
+- Responsive, accessible, polished micro-interactions (hover, transitions).
+- Return ONLY one \`\`\`html code block, no text before or after.
+
+Brief: ${desc}`;
 
 /** Try to generate the project with a real (free) model. Returns null on failure. */
 export async function generateProjectWithLLM(
@@ -37,8 +46,8 @@ export async function generateProjectWithLLM(
   signal: AbortSignal
 ): Promise<ProjectFile[] | null> {
   const provider = providerById.get(providerId);
-  const model = modelById.get(modelId);
-  if (!provider || !model) return null;
+  const model = getModelInfo(modelId);
+  if (!provider) return null;
   if (!provider.keyless && !provider.local && !cfg?.key?.trim()) {
     onLine(`⚠ ${provider.name} needs a key — falling back to the built-in generator`);
     return null;
