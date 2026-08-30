@@ -315,6 +315,63 @@ body {
   }
 }
 
+/* push-to-talk mic wave */
+.mic-wave,
+.mic-wave-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.mic-wave i,
+.mic-wave-sm i {
+  width: 4px;
+  border-radius: 4px;
+  background: currentColor;
+  animation: waveBar 1s ease-in-out infinite;
+}
+.mic-wave i {
+  height: 18px;
+}
+.mic-wave i:nth-child(1),
+.mic-wave-sm i:nth-child(1) {
+  height: 8px;
+  animation-delay: 0s;
+}
+.mic-wave i:nth-child(2),
+.mic-wave-sm i:nth-child(2) {
+  height: 22px;
+  animation-delay: 0.18s;
+}
+.mic-wave i:nth-child(3),
+.mic-wave-sm i:nth-child(3) {
+  height: 12px;
+  animation-delay: 0.36s;
+}
+.mic-wave-sm i {
+  width: 3px;
+}
+.mic-wave-sm i:nth-child(1) {
+  height: 5px;
+}
+.mic-wave-sm i:nth-child(2) {
+  height: 12px;
+}
+.mic-wave-sm i:nth-child(3) {
+  height: 7px;
+}
+@keyframes waveBar {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scaleY(1.1);
+    opacity: 1;
+  }
+}
+
 /* horizontal chip scroller (mobile) — no visible scrollbar */
 .chips-scroll {
   scrollbar-width: none;

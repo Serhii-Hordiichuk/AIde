@@ -345,6 +345,8 @@ function TextPanel({
 
 /* ================= 2 · live conversation ================= */
 
+type Side = "a" | "b";
+
 function ConvoPanel({
   translate, detect,
 }: {
@@ -353,67 +355,160 @@ function ConvoPanel({
 }) {
   const [pair, setPair] = useState(() => load("transPair", { a: "uk", b: "en" }));
   const [msgs, setMsgs] = useState<ConvoMsg[]>(() => load("transConvo", []));
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [listening, setListening] = useState(false);
-  const recRef = useRef<{ stop: () => void } | null>(null);
+  const [holding, setHolding] = useState<Side | null>(null);
+  const [interim, setInterim] = useState("");
+  const [translating, setTranslating] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
+
+  const recRef = useRef<any>(null);
+  const holdingRef = useRef<Side | null>(null);
+  const finalRef = useRef("");
+  const interimRef = useRef("");
+  const committedRef = useRef(false);
+  const pairRef = useRef(pair);
+  const translateRef = useRef(translate);
+  useEffect(() => { pairRef.current = pair; }, [pair]);
+  useEffect(() => { translateRef.current = translate; }, [translate]);
 
   useEffect(() => save("transPair", pair), [pair]);
   useEffect(() => save("transConvo", msgs), [msgs]);
   useEffect(() => {
     const el = feedRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [msgs, busy]);
+  }, [msgs, interim, translating]);
 
-  const send = async () => {
-    const text = input.trim();
-    if (!text || busy) return;
-    setInput("");
-    setBusy(true);
+  const commit = async (side: Side, text: string) => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    const from = side === "a" ? pairRef.current.a : pairRef.current.b;
+    const to = side === "a" ? pairRef.current.b : pairRef.current.a;
+    if (!text.trim()) return;
+    setTranslating(true);
     try {
-      const from = await detect(text);
-      const to = from === pair.a ? pair.b : pair.a;
-      const translated = await translate(text, to);
+      const translated = await translateRef.current(text, to);
       setMsgs((m) => [...m, { id: uid(), orig: text, translated, from, to, ts: Date.now() }]);
+      ttsSpeak(translated, ttsLang(to));
     } catch {
-      setMsgs((m) => [...m, { id: uid(), orig: text, translated: "⚠ translation failed", from: pair.a, to: pair.b, ts: Date.now() }]);
+      setMsgs((m) => [...m, { id: uid(), orig: text, translated: "⚠ translation failed", from, to, ts: Date.now() }]);
     } finally {
-      setBusy(false);
+      setTranslating(false);
     }
   };
 
-  const mic = () => {
-    if (listening) {
-      recRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const w = window as unknown as {
-      SpeechRecognition?: new () => SpeechRecognitionLike;
-      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-    };
-    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+  const startHold = (side: Side) => {
+    if (holdingRef.current) return;
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) return;
+    holdingRef.current = side;
+    committedRef.current = false;
+    finalRef.current = "";
+    interimRef.current = "";
+    setInterim("");
+    setHolding(side);
+    try { ttsSpeak("", ""); } catch {}
+
     const rec = new SR();
-    rec.lang = ttsLang(pair.a);
-    rec.interimResults = false;
-    rec.onresult = (e: SpeechRecognitionEventLike) => {
-      const t = Array.from(e.results).map((r) => r[0]?.transcript ?? "").join(" ");
-      setInput((v) => (v ? v + " " : "") + t);
+    rec.lang = ttsLang(side === "a" ? pair.a : pair.b);
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e: any) => {
+      let fin = "";
+      let it = "";
+      for (let i = 0; i < e.results.length; i++) {
+        const r = e.results[i];
+        const t = r[0]?.transcript ?? "";
+        if (r.isFinal) fin += t;
+        else it += t;
+      }
+      finalRef.current = fin;
+      interimRef.current = it;
+      setInterim((fin + " " + it).trim());
     };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    rec.start();
+    rec.onend = () => {
+      if (holdingRef.current === side) {
+        try { rec.start(); } catch {}
+        return;
+      }
+      commit(side, (finalRef.current + " " + interimRef.current).trim());
+    };
+    rec.onerror = () => {};
+    try { rec.start(); } catch {}
     recRef.current = rec;
-    setListening(true);
+  };
+
+  const endHold = () => {
+    const side = holdingRef.current;
+    if (!side) return;
+    holdingRef.current = null;
+    setHolding(null);
+    setInterim("");
+    try { recRef.current?.stop(); } catch {}
+    window.setTimeout(() => {
+      commit(side, (finalRef.current + " " + interimRef.current).trim());
+    }, 350);
+  };
+
+  const fullTranscript = () => {
+    const lines = msgs.map((m) => `[${langName(m.from)}] ${m.orig}\n[${langName(m.to)}] ${m.translated}`);
+    return lines.join("\n\n");
+  };
+
+  const copyTranscript = () => {
+    navigator.clipboard?.writeText(fullTranscript()).catch(() => {});
+  };
+
+  const stt = sttSupported();
+  const sideLang = (s: Side) => (s === "a" ? pair.a : pair.b);
+  const sideOther = (s: Side) => (s === "a" ? pair.b : pair.a);
+
+  const holdBtn = (side: Side, color: string, label: string) => {
+    const active = holding === side;
+    return (
+      <button
+        disabled={!stt || translating}
+        onPointerDown={() => startHold(side)}
+        onPointerUp={endHold}
+        onPointerLeave={() => active && endHold()}
+        onPointerCancel={() => active && endHold()}
+        onContextMenu={(e) => e.preventDefault()}
+        className={`relative flex min-h-[92px] flex-1 select-none flex-col items-center justify-center gap-1.5 overflow-hidden rounded-3xl border-2 transition-all duration-150 disabled:opacity-40 ${
+          active
+            ? color === "cyanic"
+              ? "scale-[1.02] border-cyanic bg-cyanic/15 shadow-[0_0_40px_-8px_#58c4dd88]"
+              : "scale-[1.02] border-gold bg-gold/15 shadow-[0_0_40px_-8px_#ffc24b88]"
+            : color === "cyanic"
+              ? "border-cyanic/30 bg-panel hover:border-cyanic/60"
+              : "border-gold/30 bg-panel hover:border-gold/60"
+        }`}
+        style={{ touchAction: "none" }}
+        title={`Hold to speak ${langName(sideLang(side))} → ${langName(sideOther(side))}`}
+      >
+        {active && (
+          <>
+            <span className={`absolute inset-0 animate-ping rounded-3xl opacity-20 ${color === "cyanic" ? "bg-cyanic" : "bg-gold"}`} />
+            <span className={`mic-wave ${color === "cyanic" ? "text-cyanic" : "text-gold"}`}>
+              <i /><i /><i />
+            </span>
+          </>
+        )}
+        <span className={`relative z-10 ${active ? (color === "cyanic" ? "text-cyanic" : "text-gold") : "text-dim"}`}>
+          <MicIcon className="mx-auto h-6 w-6" />
+        </span>
+        <span className="relative z-10 px-2 text-center text-[12.5px] font-bold leading-tight text-text">
+          {label}
+        </span>
+        <span className={`relative z-10 font-mono text-[10px] uppercase tracking-wider ${color === "cyanic" ? "text-cyanic/80" : "text-gold/80"}`}>
+          {langName(sideLang(side))} → {langName(sideOther(side))}
+        </span>
+      </button>
+    );
   };
 
   return (
     <div className="mx-auto flex h-full max-h-full w-full max-w-[760px] flex-col px-4 py-4">
       {/* pair bar */}
       <div className="mb-3 flex items-center gap-2">
-        <LangSelect value={pair.a} onChange={(v) => setPair((p: typeof pair) => ({ ...p, a: v }))} label="you" accent="border-cyanic/40" />
+        <LangSelect value={pair.a} onChange={(v) => setPair((p: typeof pair) => ({ ...p, a: v }))} label="side a" accent="border-cyanic/40" />
         <button
           onClick={() => setPair((p: typeof pair) => ({ a: p.b, b: p.a }))}
           className="icon-btn h-9 w-9 shrink-0 rounded-xl border border-line"
@@ -421,32 +516,67 @@ function ConvoPanel({
         >
           <SwapIcon className="h-4 w-4" />
         </button>
-        <LangSelect value={pair.b} onChange={(v) => setPair((p: typeof pair) => ({ ...p, b: v }))} label="them" accent="border-cyanic/40" />
+        <LangSelect value={pair.b} onChange={(v) => setPair((p: typeof pair) => ({ ...p, b: v }))} label="side b" accent="border-gold/40" />
         {msgs.length > 0 && (
-          <button onClick={() => setMsgs([])} className="icon-btn h-9 w-9 shrink-0 rounded-xl border border-line" title="Clear conversation">
-            <TrashIcon className="h-4 w-4" />
-          </button>
+          <>
+            <button onClick={copyTranscript} className="icon-btn h-9 w-9 shrink-0 rounded-xl border border-line" title="Copy full bilingual transcript">
+              <FileTextIcon className="h-4 w-4" />
+            </button>
+            <button onClick={() => setMsgs([])} className="icon-btn h-9 w-9 shrink-0 rounded-xl border border-line" title="Clear conversation">
+              <TrashIcon className="h-4 w-4" />
+            </button>
+          </>
         )}
       </div>
 
+      {/* live caption while holding */}
+      {(holding || interim || translating) && (
+        <div className="mb-3 shrink-0 rounded-2xl border border-line bg-panel px-4 py-3">
+          <div className="mb-1 flex items-center gap-2">
+            {holding ? (
+              <span className={`mic-wave-sm ${holding === "a" ? "text-cyanic" : "text-gold"}`}><i /><i /><i /></span>
+            ) : translating ? (
+              <span className="flex items-center gap-1 text-violet3">
+                <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
+                <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
+                <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
+              </span>
+            ) : null}
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
+              {holding ? `listening · ${langName(sideLang(holding))}` : translating ? "translating…" : "…"}
+            </span>
+          </div>
+          <p className="min-h-[20px] text-[14.5px] leading-relaxed text-text">
+            {interim || (translating ? "" : "…")}
+            {holding && <span className="caret ml-1" />}
+          </p>
+        </div>
+      )}
+
       {/* feed */}
       <div ref={feedRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-3">
-        {msgs.length === 0 && !busy && (
+        {msgs.length === 0 && !translating && (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <p className="text-[14px] text-dim">
-              Speak or type in <b className="text-cyanic">{langName(pair.a)}</b> or <b className="text-cyanic">{langName(pair.b)}</b> —
+              Hold a side and speak — the interpreter listens to <b className="text-cyanic">{langName(pair.a)}</b> and{" "}
+              <b className="text-gold">{langName(pair.b)}</b>,
             </p>
-            <p className="mt-1 text-[13px] text-faint">the other side sees it in their language instantly.</p>
+            <p className="mt-1 text-[13px] text-faint">translates and reads it out loud to the other side. Release to send.</p>
           </div>
         )}
         {msgs.map((m) => {
-          const mine = m.from === pair.a;
+          const isA = m.from === pair.a;
           return (
-            <div key={m.id} className={`anim-rise flex ${mine ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[86%] overflow-hidden rounded-2xl border ${mine ? "rounded-br-md border-cyanic/30 bg-panel3" : "rounded-bl-md border-line bg-panel"}`}>
-                <div className="px-4 pt-3 text-[14px] leading-relaxed">{m.orig}</div>
-                <div className={`border-t border-line/70 px-4 py-3 text-[14px] leading-relaxed ${mine ? "bg-panel/50" : "bg-panel3/40"}`}>
-                  <span className="mr-2 rounded bg-cyanic/12 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-cyanic">
+            <div key={m.id} className={`anim-rise flex ${isA ? "justify-start" : "justify-end"}`}>
+              <div className={`max-w-[88%] overflow-hidden rounded-2xl border ${isA ? "rounded-bl-md border-cyanic/30 bg-panel" : "rounded-br-md border-gold/30 bg-panel3"}`}>
+                <div className="px-4 pt-3 text-[14px] leading-relaxed">
+                  <span className={`mr-2 rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${isA ? "bg-cyanic/12 text-cyanic" : "bg-gold/12 text-gold"}`}>
+                    {m.from}
+                  </span>
+                  {m.orig}
+                </div>
+                <div className={`border-t border-line/70 px-4 py-3 text-[14px] leading-relaxed ${isA ? "bg-panel3/40" : "bg-panel/50"}`}>
+                  <span className="mr-2 rounded bg-violet/12 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-violet3">
                     {m.to}
                   </span>
                   {m.translated}
@@ -460,56 +590,21 @@ function ConvoPanel({
             </div>
           );
         })}
-        {busy && (
-          <div className="flex justify-end">
-            <div className="rounded-2xl rounded-br-md border border-cyanic/30 bg-panel3 px-4 py-3">
-              <span className="flex items-center gap-1.5 text-cyanic">
-                <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
-                <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
-                <span className="thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* input */}
-      <div className="flex shrink-0 items-end gap-2 rounded-2xl border border-line2 bg-panel2 p-2 focus-within:border-cyanic/50">
-        {sttSupported() && (
-          <button
-            onClick={mic}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all ${
-              listening ? "bg-coral/15 text-coral" : "text-dim hover:bg-panel3 hover:text-text"
-            }`}
-            title={listening ? "Stop listening" : `Voice input (${langName(pair.a)})`}
-          >
-            {listening ? <StopIcon className="h-4 w-4" /> : <MicIcon className="h-4 w-4" />}
-          </button>
-        )}
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          rows={1}
-          placeholder={`Say something in ${langName(pair.a)} or ${langName(pair.b)}…`}
-          className="max-h-[120px] min-h-[36px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
-        />
-        <button
-          onClick={send}
-          disabled={!input.trim() || busy}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyanic to-[#2f9fd8] text-white transition-all enabled:hover:brightness-110 disabled:opacity-35"
-          title="Translate & send"
-        >
-          <SwapIcon className="h-4 w-4" />
-        </button>
-      </div>
-      <p className="mt-2 text-center font-mono text-[10px] text-faint">
-        auto-detects who's talking and flips direction · tap a bubble to hear it
+      {/* push-to-talk */}
+      {stt ? (
+        <div className="flex shrink-0 items-stretch gap-2.5">
+          {holdBtn("a", "cyanic", "Hold to talk")}
+          {holdBtn("b", "gold", "Hold to talk")}
+        </div>
+      ) : (
+        <div className="shrink-0 rounded-2xl border border-coral/30 bg-coral/8 px-4 py-3 text-center text-[12.5px] text-coral">
+          Voice input isn't supported in this browser — try Chrome or Edge.
+        </div>
+      )}
+      <p className="mt-2 shrink-0 text-center font-mono text-[10px] text-faint">
+        hold a side to speak · release to translate &amp; read aloud · both sides heard
       </p>
     </div>
   );
