@@ -42,6 +42,9 @@ const en: Dict = {
   "ui.language": "Language",
   "ui.appearance": "Appearance",
 
+  // modes
+  "mode.chat": "Chat",
+
   // chat
   "chat.hello": "Hello, I'm",
   "chat.help": "How can I help you today?",
@@ -138,6 +141,9 @@ const uk: Dict = {
   "ui.themeDark": "Темна",
   "ui.language": "Мова",
   "ui.appearance": "Вигляд",
+
+  // modes
+  "mode.chat": "Чат",
 
   // chat
   "chat.hello": "Привіт, я",

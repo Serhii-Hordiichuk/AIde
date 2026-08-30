@@ -33,14 +33,36 @@ export interface SpeakHandle {
   cancel: () => void;
 }
 
+/* ISO 639-1 → sensible default BCP-47 region (fallback for voices without an exact hint). */
+const ISO_BCP: Record<string, string> = {
+  en: "en-US", uk: "uk-UA", ru: "ru-RU", pl: "pl-PL", de: "de-DE", fr: "fr-FR",
+  es: "es-ES", pt: "pt-BR", it: "it-IT", nl: "nl-NL", tr: "tr-TR", ar: "ar-SA",
+  he: "he-IL", fa: "fa-IR", hi: "hi-IN", zh: "zh-CN", yue: "zh-HK", ja: "ja-JP",
+  ko: "ko-KR", vi: "vi-VN", th: "th-TH", id: "id-ID", cs: "cs-CZ", sk: "sk-SK",
+  ro: "ro-RO", hu: "hu-HU", el: "el-GR", sv: "sv-SE", no: "nb-NO", da: "da-DK",
+  fi: "fi-FI", bg: "bg-BG", sr: "sr-RS", hr: "hr-HR", ca: "ca-ES", kk: "kk-KZ",
+};
+
+/** Normalizes an ISO / BCP-47 code into a valid BCP-47 tag. */
+export function toBcp47(lang: string): string {
+  if (!lang) return "en-US";
+  if (lang.includes("-")) return lang;
+  return ISO_BCP[lang] ?? `${lang}-${lang.toUpperCase()}`;
+}
+
 /** Speaks `text` in `lang` (BCP-47 or ISO). Returns a handle to cancel. No-op if unsupported. */
 export function speak(text: string, lang: string, onEnd?: () => void): SpeakHandle {
   const noop: SpeakHandle = { cancel: () => {} };
   if (!("speechSynthesis" in window)) return noop;
   const synth = window.speechSynthesis;
   synth.cancel();
-  const u = new SpeechSynthesisUtterance(speakable(text).slice(0, 2400));
-  u.lang = lang.includes("-") ? lang : `${lang}-${lang.toUpperCase()}`;
+  const clean = speakable(text).slice(0, 2400);
+  if (!clean) {
+    onEnd?.();
+    return noop;
+  }
+  const u = new SpeechSynthesisUtterance(clean);
+  u.lang = toBcp47(lang);
   const voice = pickVoice(synth.getVoices(), lang);
   if (voice) {
     u.voice = voice;

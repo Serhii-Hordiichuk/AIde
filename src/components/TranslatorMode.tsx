@@ -6,6 +6,7 @@ import { streamChat } from "../lib/llm";
 import { DEFAULT_PARAMS, load, save, uid, type ProviderCfg } from "../lib/store";
 import { LANGS, langName, ttsLang, detectByScript, normalizeCode } from "../lib/languages";
 import { speak as ttsSpeak, ttsSupported, sttSupported } from "../lib/tts";
+import { useI18n } from "../lib/i18n";
 import {
   SwapIcon, DownloadIcon, FileTextIcon, MicIcon, StopIcon,
   SpeakerIcon, CopyIcon, CheckIcon, TrashIcon, GlobeIcon,
@@ -37,12 +38,37 @@ interface DocJob {
   err?: string;
 }
 
-const TRANSLATOR_SYS =
+const SMART_SYS =
   "You are a world-class translator fluent in every language and dialect. " +
-  "Translate the user's text exactly, preserving tone, formatting and line breaks. " +
-  "Reply with ONLY the translation — no commentary, no quotes, no explanations.";
+  "You will detect the source language and translate to the requested target. " +
+  "Reply EXACTLY in this format:\n" +
+  "<<SRC:xx>>\n" +
+  "the translation here\n" +
+  "where xx is the ISO 639-1 code of the source language. " +
+  "Preserve tone, formatting and line breaks. The translation must contain ONLY the translated text — " +
+  "no commentary, no quotes, no explanations, no markdown fences.";
+
+/** Strips model artefacts (quotes, prefixes, fences) from a raw translation. */
+function cleanTranslation(raw: string): string {
+  return raw
+    .replace(/^```[a-z]*\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .replace(/^(translation|translated text|here is the translation|переклад)\s*[:\-–—]\s*/i, "")
+    .replace(/^["“”«»']+|["“”«»']+$/g, "")
+    .trim();
+}
+
+/** Parses the structured "<<SRC:xx>>\ntext" reply. */
+function parseSmart(raw: string): { from: string | null; text: string } {
+  const m = /^<<\s*SRC\s*:\s*([a-z]{2,3}(?:-[a-z]{2,4})?)\s*>>\s*\n?([\s\S]*)$/i.exec(raw.trim());
+  if (m) {
+    return { from: normalizeCode(m[1]) ?? m[1].toLowerCase(), text: cleanTranslation(m[2]) };
+  }
+  return { from: null, text: cleanTranslation(raw) };
+}
 
 export default function TranslatorMode({ cfgs, catalog, modelId }: Props) {
+  const { t: tr } = useI18n();
   const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs, catalog) : getModelInfo(modelId);
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
 
@@ -71,27 +97,44 @@ export default function TranslatorMode({ cfgs, catalog, modelId }: Props) {
     [model, provider, cfgs]
   );
 
-  const translate = useCallback(
-    (text: string, target: string, signal?: AbortSignal) =>
-      complete(TRANSLATOR_SYS, `Translate into ${langName(target)}:\n\n${text}`, signal),
-    [complete]
-  );
+  /**
+   * One-shot translate: the model detects the source language AND translates in a
+   * single request, so there's no slow/error-prone separate detect round-trip.
+   * Returns both the detected source code and the cleaned translation.
+   * If the text is already in the target language, it is returned unchanged.
+   */
+  const translateSmart = useCallback(
+    async (text: string, target: string, signal?: AbortSignal): Promise<{ from: string; text: string }> => {
+      const trimmed = text.trim();
+      if (!trimmed) return { from: target, text: "" };
 
-  const detect = useCallback(
-    async (text: string): Promise<string> => {
-      const guess = detectByScript(text);
-      try {
-        const raw = await complete(
-          "You detect languages. Reply with ONLY the ISO 639-1 code (en, uk, de…).",
-          `Language of this text?\n"""${text.slice(0, 400)}"""`
-        );
-        return normalizeCode(raw) ?? guess ?? "en";
-      } catch {
-        return guess ?? "en";
-      }
+      const raw = await complete(
+        SMART_SYS,
+        `Target language: ${langName(target)} (${target})\n\nText to translate:\n"""${trimmed}"""`,
+        signal
+      );
+      const parsed = parseSmart(raw);
+      const from = parsed.from ?? detectByScript(trimmed) ?? target;
+
+      /* already in the target language → nothing to translate */
+      if (from === target) return { from, text: trimmed };
+      /* model failed to translate → fall back to the cleaned output or original */
+      return { from, text: parsed.text || trimmed };
     },
     [complete]
   );
+
+  /** Simple translate kept for panels that only need the text. */
+  const translate = useCallback(
+    async (text: string, target: string, signal?: AbortSignal) =>
+      (await translateSmart(text, target, signal)).text,
+    [translateSmart]
+  );
+
+  /** Local script-based detection (instant, no network). */
+  const detect = useCallback(async (text: string): Promise<string> => {
+    return detectByScript(text) ?? "en";
+  }, []);
 
   return (
     <div className="flex h-full flex-col">
@@ -99,9 +142,9 @@ export default function TranslatorMode({ cfgs, catalog, modelId }: Props) {
       <div className="flex shrink-0 items-center gap-1 border-b border-line px-3 py-2">
         {(
           [
-            { id: "text", label: "Text", icon: GlobeIcon },
-            { id: "convo", label: "Live conversation", icon: MicIcon },
-            { id: "doc", label: "Documents", icon: FileTextIcon },
+            { id: "text", label: tr("tr.text"), icon: GlobeIcon },
+            { id: "convo", label: tr("tr.live"), icon: MicIcon },
+            { id: "doc", label: tr("tr.docs"), icon: FileTextIcon },
           ] as const
         ).map((t) => (
           <button
@@ -121,7 +164,7 @@ export default function TranslatorMode({ cfgs, catalog, modelId }: Props) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {tab === "text" && <TextPanel translate={translate} detect={detect} />}
+        {tab === "text" && <TextPanel translateSmart={translateSmart} />}
         {tab === "convo" && <ConvoPanel translate={translate} detect={detect} />}
         {tab === "doc" && <DocPanel translate={translate} />}
       </div>
@@ -203,10 +246,9 @@ function CopyBtn({ text }: { text: string }) {
 /* ================= 1 · live text translation ================= */
 
 function TextPanel({
-  translate, detect,
+  translateSmart,
 }: {
-  translate: (t: string, to: string, s?: AbortSignal) => Promise<string>;
-  detect: (t: string) => Promise<string>;
+  translateSmart: (t: string, to: string, s?: AbortSignal) => Promise<{ from: string; text: string }>;
 }) {
   const [langs, setLangs] = useState(() => load("transLangs", { src: "auto", tgt: "en" }));
   const [src, setSrc] = useState("");
@@ -232,27 +274,17 @@ function TextPanel({
       acRef.current = ac;
       setBusy(true);
       try {
-        let from = langs.src;
-        if (from === "auto") {
-          const quick = detectByScript(text);
-          if (quick) {
-            setDetected(quick);
-            from = quick === target ? "en" : quick;
-          } else {
-            const d = await detect(text);
-            setDetected(d);
-            from = d === target ? "en" : d;
-          }
-        } else setDetected(null);
-        const res = await translate(text, target, ac.signal);
-        setOut(res);
+        /* smart single-pass: detect + translate together */
+        const res = await translateSmart(text, target, ac.signal);
+        setDetected(res.from);
+        setOut(res.text);
       } catch (e) {
         if (!ac.signal.aborted) setOut(`⚠ ${e instanceof Error ? e.message : "translation failed"}`);
       } finally {
         setBusy(false);
       }
     },
-    [langs.src, target, translate, detect]
+    [target, translateSmart]
   );
 
   /* live: debounce 700ms like a pro translator */
@@ -323,7 +355,16 @@ function TextPanel({
           </div>
           <div className="min-h-[240px] flex-1 overflow-y-auto px-4 py-3 text-[14.5px] leading-relaxed whitespace-pre-wrap">
             {out ? (
-              <span className={busy ? "text-dim" : "text-text"}>{out}</span>
+              detected === target ? (
+                <span className="text-text">
+                  {out}
+                  <span className="mt-3 block font-mono text-[10.5px] uppercase tracking-wider text-gold">
+                    ⚠ already in {langName(target)} — left unchanged
+                  </span>
+                </span>
+              ) : (
+                <span className={busy ? "text-dim" : "text-text"}>{out}</span>
+              )
             ) : (
               <span className="text-faint">{src ? "Translating…" : "Translation appears here"}</span>
             )}
