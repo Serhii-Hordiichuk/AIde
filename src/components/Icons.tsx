@@ -283,3 +283,36 @@ export const OpenIcon = (p: IP) => (
     <path d="M14 4h6v6M20 4l-9 9M9 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
   </S>
 );
+
+export const SwapIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M7 4L3.5 7.5 7 11M3.5 7.5H17M17 13l3.5 3.5L17 20M20.5 16.5H7" />
+  </S>
+);
+
+export const DownloadIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M12 3v11M8 10.5l4 4 4-4M4.5 17.5v1A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5v-1" />
+  </S>
+);
+
+export const FileTextIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M6 3.5h8L19 8.5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z" />
+    <path d="M13.5 3.5v5.5H19M8.5 13h7M8.5 16h5" />
+  </S>
+);
+
+export const MicIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="9.5" y="3.5" width="5" height="10" rx="2.5" />
+    <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" />
+  </S>
+);
+
+export const TranslateIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M3.5 6h9M8 4v2M11 6c-.8 3.2-3 6-6.5 7.5M5.5 9.5C7 12 9.5 13.7 12 14.3" />
+    <path d="M13 20l4-9 4 9M14.2 17.2h5.6" />
+  </S>
+);
