@@ -319,14 +319,14 @@ export default function App() {
           className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-panel2 px-3.5 py-2.5 text-[13.5px] font-bold text-text transition-all hover:border-violet/45 hover:bg-panel3"
         >
           <PlusIcon className="h-4 w-4 text-violet2" />
-          New chat
+          {t("nav.newChat")}
         </button>
       </div>
 
       {/* history + projects */}
       <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
         {groups.length === 0 && (
-          <p className="px-2 py-1 font-mono text-[10.5px] text-faint">no chats yet</p>
+          <p className="px-2 py-1 font-mono text-[10.5px] text-faint">{t("nav.noChats")}</p>
         )}
         {groups.map((g) => (
           <div key={g.label} className="mb-3">
@@ -743,9 +743,9 @@ export default function App() {
           <div className="ml-auto flex items-center gap-1 rounded-full border border-line bg-panel p-1">
             {(
               [
-                { id: "chat", label: "Chat", icon: ChatIcon },
-                { id: "coder", label: "Coder", icon: CodeIcon },
-                { id: "translate", label: "Translate", icon: TranslateIcon },
+                { id: "chat", label: t("mode.chat"), icon: ChatIcon },
+                { id: "coder", label: t("coder.title"), icon: CodeIcon },
+                { id: "translate", label: t("tr.title"), icon: TranslateIcon },
               ] as const
             ).map((m) => (
               <button

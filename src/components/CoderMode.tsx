@@ -5,6 +5,7 @@ import { providerById, PROVIDERS } from "../data/providers";
 import { scaffoldProject, generateProjectWithLLM, buildPreviewDoc, CODER_SUGGESTIONS } from "../lib/engine";
 import { ROLES, buildPlan, buildLLMPlan, uniqueRoles, type Subtask } from "../lib/plan";
 import type { Project, ProjectFile, ProviderCfg } from "../lib/store";
+import { useI18n } from "../lib/i18n";
 import {
   BrandMark, SendIcon, CodeIcon, EyeIcon, TerminalIcon, RefreshIcon, PlayIcon,
   CheckIcon, FileIcon, OpenIcon, XIcon,
@@ -39,6 +40,7 @@ const ROLE_TERM: Record<string, string> = {
 };
 
 export default function CoderMode({ project, patchProject, createProject, cfgs, modelId, catalog }: Props) {
+  const { t } = useI18n();
   const [prompt, setPrompt] = useState("");
   const [follow, setFollow] = useState("");
   const [tab, setTab] = useState<Tab>("code");
@@ -419,20 +421,20 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
         <div className="flex items-center gap-1 border-b border-line px-3 py-2">
           {(
             [
-              { id: "code", label: "Code", icon: CodeIcon },
-              { id: "preview", label: "Preview", icon: EyeIcon },
-              { id: "term", label: "Terminal", icon: TerminalIcon },
+              { id: "code", label: t("coder.code"), icon: CodeIcon },
+              { id: "preview", label: t("coder.preview"), icon: EyeIcon },
+              { id: "term", label: t("coder.terminal"), icon: TerminalIcon },
             ] as const
-          ).map((t) => (
+          ).map((tb) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tb.id}
+              onClick={() => setTab(tb.id)}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold transition-all sm:px-3 ${
-                tab === t.id ? "bg-brand/12 text-brand" : "text-dim hover:bg-panel2 hover:text-text"
+                tab === tb.id ? "bg-brand/12 text-brand" : "text-dim hover:bg-panel2 hover:text-text"
               }`}
             >
-              <t.icon className="h-3.5 w-3.5" />
-              <span className="max-sm:hidden">{t.label}</span>
+              <tb.icon className="h-3.5 w-3.5" />
+              <span className="max-sm:hidden">{tb.label}</span>
             </button>
           ))}
           <div className="ml-auto flex items-center gap-1.5">

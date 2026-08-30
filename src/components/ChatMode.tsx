@@ -5,6 +5,7 @@ import { providerById, PROVIDERS } from "../data/providers";
 import { streamChat, NoKeyError } from "../lib/llm";
 import { Markdown } from "../lib/markdown";
 import { uid, DEFAULT_PARAMS, type ChatMessage, type Conversation, type ProviderCfg } from "../lib/store";
+import { useI18n } from "../lib/i18n";
 import ModelPicker from "./ModelPicker";
 import {
   BrandMark, SendIcon, StopIcon, CopyIcon, CheckIcon, RefreshIcon,
@@ -40,7 +41,8 @@ function pickVoice(voices: SpeechSynthesisVoice[], lang: string): SpeechSynthesi
 }
 
 const PERSONA =
-  "You are AiDe, a helpful AI assistant. Answer in English, concise and to the point, using markdown formatting and code blocks where appropriate.";
+  "You are AiDe, a helpful AI assistant. Always reply in the same language the user writes in (default to English if unclear). " +
+  "Be concise and to the point, using markdown formatting and code blocks where appropriate.";
 
 const SUGGESTIONS = [
   { icon: CodeIcon, title: "Write code", text: "Write a useDebounce hook with tests" },
@@ -59,6 +61,7 @@ interface Props {
 }
 
 export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onModel }: Props) {
+  const { t } = useI18n();
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [thinking, setThinking] = useState(false);
@@ -106,6 +109,13 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
 
   const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs, catalog) : getModelInfo(modelId);
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
+
+  const suggestions = [
+    { icon: CodeIcon, title: t("chat.sugg.code"), text: t("chat.codeT") },
+    { icon: BulbIcon, title: t("chat.sugg.explain"), text: t("chat.explainT") },
+    { icon: PenIcon, title: t("chat.sugg.write"), text: t("chat.writeT") },
+    { icon: ChartIcon, title: t("chat.sugg.compare"), text: t("chat.compareT") },
+  ];
 
   function autosize() {
     const ta = taRef.current;
@@ -218,9 +228,9 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
                 <BrandMark className="h-14 w-14 drop-shadow-[0_0_32px_#615ced66]" />
               </div>
               <h1 className="text-[26px] font-extrabold tracking-tight">
-                Hello, I'm <span className="text-violet2">AiDe</span>
+                {t("chat.hello")} <span className="text-violet2">AiDe</span>
               </h1>
-              <p className="mt-1.5 text-[14px] text-dim">How can I help you today?</p>
+              <p className="mt-1.5 text-[14px] text-dim">{t("chat.help")}</p>
             </div>
           </div>
         ) : (
@@ -258,19 +268,19 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
               }
             }}
             rows={1}
-            placeholder="Message AiDe…"
+            placeholder={t("chat.placeholder")}
             className="block w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed outline-none placeholder:text-faint"
           />
           <div className="mt-2 flex items-center gap-1.5">
             <div className="chips-scroll ml-auto flex items-center gap-1.5 overflow-x-auto">
               <button className={`chip-mode shrink-0 ${thinking ? "on" : ""}`} onClick={() => setThinking((v) => !v)}>
-                <BrainIcon className="h-3.5 w-3.5" /> Think
+                <BrainIcon className="h-3.5 w-3.5" /> {t("chat.think")}
               </button>
               <button className={`chip-mode shrink-0 ${search ? "on" : ""}`} onClick={() => setSearch((v) => !v)}>
-                <GlobeIcon className="h-3.5 w-3.5" /> Search
+                <GlobeIcon className="h-3.5 w-3.5" /> {t("chat.search")}
               </button>
               <button className={`chip-mode shrink-0 ${deep ? "on" : ""}`} onClick={() => setDeep((v) => !v)}>
-                <SearchIcon className="h-3.5 w-3.5" /> <span className="whitespace-nowrap">Deep Research</span>
+                <SearchIcon className="h-3.5 w-3.5" /> <span className="whitespace-nowrap">{t("chat.deep")}</span>
               </button>
               {busy ? (
                 <button
@@ -297,7 +307,7 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
         {/* suggestions under the composer on empty state */}
         {empty && (
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {SUGGESTIONS.map((s, i) => (
+            {suggestions.map((s, i) => (
               <button
                 key={s.title}
                 onClick={() => send(s.text)}
