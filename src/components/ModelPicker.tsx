@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { PROVIDERS, providerById } from "../data/providers";
 import {
-  dynId, getModelInfo, isAutoModel, resolveAutoModel, AUTO_LABEL,
+  dynId, getModelInfo, isAutoModel, resolveAutoModel,
 } from "../data/models";
 import type { LiveCatalog } from "../lib/modelFetch";
 import type { ProviderCfg } from "../lib/store";
 import {
   ChevronDown, CheckIcon, BoltIcon, GiftIcon, ServerIcon, RefreshIcon, KeyIcon,
 } from "./Icons";
+import { useI18n } from "../lib/i18n";
 
 const LIST_CAP = 60;
 
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefresh, onRefreshAll }: Props) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const ref = useRef<HTMLDivElement>(null);
@@ -71,7 +73,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
       <button
         onClick={() => setOpen((v) => !v)}
         className="row-hl flex max-w-[min(300px,44vw)] items-center gap-2 rounded-xl px-2.5 py-2 text-[14px] font-extrabold text-text transition-all"
-        title="Change model"
+        title={t("picker.change")}
       >
         {auto ? (
           <span className={modelId === "auto-free" ? "text-gold" : "text-cyanic"}>
@@ -80,7 +82,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
         ) : (
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: provider?.accent ?? "#888" }} />
         )}
-        <span className="truncate">{auto ? AUTO_LABEL[modelId] : resolved.name}</span>
+        <span className="truncate">{auto ? (modelId === "auto-free" ? t("picker.autoFree") : t("picker.autoLocal")) : resolved.name}</span>
         {auto && (
           <span className="hidden truncate font-mono text-[11px] font-medium text-faint sm:inline">
             → {resolved.name}
@@ -95,7 +97,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
         <div className="backdrop-in fixed inset-0 z-40 bg-ink/60 md:hidden" onClick={() => setOpen(false)} />
         <div className="md-picker-pop sheet-in fixed inset-x-2 bottom-2 z-50 flex max-h-[70vh] flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.85)] md:absolute md:inset-auto md:left-0 md:top-full md:mt-2 md:w-[420px] md:max-w-[92vw] md:rounded-2xl">
           <div className="flex items-center justify-between border-b border-line/70 px-4 py-2.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">models · fetched live</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">{t("picker.title")}</span>
             <button
               onClick={() => {
                 PROVIDERS.forEach((p) => {
@@ -104,10 +106,10 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
                 });
               }}
               className="flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-dim transition-all hover:border-violet/50 hover:text-violet3"
-              title="Re-fetch every reachable provider"
+              title={t("picker.refetch")}
             >
               <RefreshIcon className="h-3 w-3" />
-              refresh all
+              {t("picker.refreshAll")}
             </button>
           </div>
 
@@ -116,12 +118,13 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
             <div className="border-b border-line/70 pb-1.5">
               <p className="flex items-center gap-2 px-4 pb-1 pt-2.5 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
                 <BoltIcon className="h-3 w-3 text-violet3" />
-                smart routing
+                {t("picker.routing")}
               </p>
               <AutoRow
                 id="auto-free"
+                label={t("picker.autoFree")}
                 icon={<GiftIcon className="h-3.5 w-3.5" />}
-                desc="cheapest route: your keys → keyless"
+                desc={t("picker.autoFreeDesc")}
                 tint="text-gold"
                 border="border-gold/45"
                 bg="bg-gold/10"
@@ -134,8 +137,9 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
               />
               <AutoRow
                 id="auto-local"
+                label={t("picker.autoLocal")}
                 icon={<ServerIcon className="h-3.5 w-3.5" />}
-                desc="Ollama · LM Studio · vLLM · llama.cpp"
+                desc={t("picker.autoLocalDesc")}
                 tint="text-cyanic"
                 border="border-cyanic/45"
                 bg="bg-cyanic/10"
@@ -164,17 +168,17 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
                     {isLoading ? (
                       <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] text-faint">
                         <span className="h-2.5 w-2.5 animate-spin rounded-full border border-line2 border-t-violet3" />
-                        fetching…
+                        {t("picker.fetching")}
                       </span>
                     ) : models.length > 0 ? (
                       <span className="ml-auto flex items-center gap-2">
                         <span className="rounded bg-panel2 px-1.5 py-0.5 font-mono text-[9.5px] text-mint">
-                          {models.length} live
+                          {models.length} {t("picker.live")}
                         </span>
                         <button
                           onClick={() => void refresh(p.id)}
                           className="rounded p-1 text-faint transition-colors hover:text-violet3"
-                          title={`Refresh ${p.name} models`}
+                          title={t("picker.refetch")}
                         >
                           <RefreshIcon className="h-3 w-3" />
                         </button>
@@ -184,24 +188,24 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
                         onClick={() => void refresh(p.id)}
                         className="ml-auto flex items-center gap-1.5 rounded-lg border border-line px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-dim transition-all hover:border-violet/50 hover:text-violet3"
                       >
-                        load models
+                        {t("picker.loadModels")}
                       </button>
                     ) : (
                       <span className="ml-auto flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-faint">
                         <KeyIcon className="h-3 w-3" />
-                        add key
+                        {t("picker.addKey")}
                       </span>
                     )}
                   </div>
 
                   {models.length === 0 && reachable && !isLoading && (
                     <p className="px-4 pb-1 text-[11px] text-faint">
-                      {p.local ? "server not reachable — check the base URL" : "nothing loaded yet"}
+                      {p.local ? t("picker.serverDown") : t("picker.nothing")}
                     </p>
                   )}
                   {!reachable && (
                     <p className="px-4 pb-1 text-[11px] text-faint">
-                      {p.keyless ? "keyless" : "free key in Settings → models appear here"}
+                      {p.keyless ? t("picker.keyless") : t("picker.needKey")}
                     </p>
                   )}
 
@@ -232,7 +236,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
                   })}
                   {models.length > LIST_CAP && (
                     <p className="px-4 py-1 font-mono text-[10px] text-faint">
-                      + {models.length - LIST_CAP} more — type the exact id in a request if needed
+                      + {models.length - LIST_CAP} {t("picker.more")}
                     </p>
                   )}
                 </div>
@@ -255,9 +259,10 @@ function freshOf(catalog: LiveCatalog): Record<string, string[]> {
 }
 
 function AutoRow({
-  id, icon, desc, tint, border, bg, active, resolvedName, onPick,
+  id, label, icon, desc, tint, border, bg, active, resolvedName, onPick,
 }: {
   id: string;
+  label: string;
   icon: React.ReactNode;
   desc: string;
   tint: string;
@@ -277,10 +282,10 @@ function AutoRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className={`block text-[13px] ${active ? `font-bold ${tint}` : "font-semibold text-text"}`}>
-          {AUTO_LABEL[id]}
+          {label}
         </span>
         <span className="block truncate font-mono text-[10.5px] text-faint">
-          {desc} · now → <span className="text-dim">{resolvedName}</span>
+          {desc} · → <span className="text-dim">{resolvedName}</span>
         </span>
       </span>
       <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center ${active ? tint : "opacity-0"}`}>

@@ -10,13 +10,6 @@ import type { ThemeMode } from "../lib/theme";
 
 type Phase = "idle" | "generating" | "ready" | "import";
 
-const GEN_STEPS = [
-  "collecting entropy from WebCrypto…",
-  "generating ECDSA P-256 keypair…",
-  "deriving did:key (multicodec p256-pub)…",
-  "identity sealed — keys never leave this device",
-];
-
 export default function AuthGate({
   onReady,
   initial = "idle",
@@ -36,6 +29,8 @@ export default function AuthGate({
   const [error, setError] = useState("");
   const [copied, setCopied] = useState<"did" | "key" | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
+
+  const GEN_STEPS = [t("auth.gen1"), t("auth.gen2"), t("auth.gen3"), t("auth.gen4")];
 
   useEffect(() => {
     const el = logRef.current;
@@ -113,7 +108,7 @@ export default function AuthGate({
           <div>
             <Wordmark className="text-[22px] leading-none" />
             <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.22em] text-faint">
-              self-sovereign ai studio
+              {t("app.tagline")}
             </p>
           </div>
         </div>
@@ -124,18 +119,14 @@ export default function AuthGate({
             {["#ff6b6b", "#ffc24b", "#3ecf8e"].map((c) => (
               <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ background: c, opacity: 0.75 }} />
             ))}
-            <span className="ml-2 font-mono text-[11px] text-faint">aide — identity console</span>
+            <span className="ml-2 font-mono text-[11px] text-faint">{t("auth.console")}</span>
             <span className="ml-auto font-mono text-[9.5px] uppercase tracking-wider text-violet3">did:key · p-256</span>
           </div>
 
           <div className="p-5">
             {phase === "idle" && (
               <div>
-                <p className="text-[14px] leading-relaxed text-dim">
-                  AiDe has no accounts, no emails, no servers holding your data. Access is granted to a{" "}
-                  <b className="text-text">decentralized identity (DID)</b> that is generated and stored only on
-                  this device — registration gives you full access to chat, coder and provider keys.
-                </p>
+                <p className="text-[14px] leading-relaxed text-dim">{t("auth.intro")}</p>
                 <button onClick={create} className="btn-brand mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-extrabold">
                   <BoltIcon className="h-4 w-4" />
                   {t("auth.createDid")}
@@ -155,10 +146,7 @@ export default function AuthGate({
 
             {phase === "import" && (
               <div>
-                <p className="text-[13px] text-dim">
-                  Paste the contents of your <span className="font-mono text-[12px] text-violet3">aide-identity.json</span>{" "}
-                  backup — the DID is re-derived and the key is verified locally.
-                </p>
+                <p className="text-[13px] text-dim">{t("auth.importHint")}</p>
                 <textarea
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
@@ -176,7 +164,7 @@ export default function AuthGate({
                     }}
                     className="row-hl flex-1 rounded-xl border border-line py-2.5 text-[13px] font-bold text-dim hover:text-text"
                   >
-                    Back
+                    {t("auth.back")}
                   </button>
                   <button
                     onClick={restore}
@@ -203,15 +191,15 @@ export default function AuthGate({
             {phase === "ready" && identity && (
               <div>
                 <p className="flex items-center gap-2 text-[13px] font-bold text-mint">
-                  <CheckIcon className="h-4 w-4" /> Identity created — full access unlocked
+                  <CheckIcon className="h-4 w-4" /> {t("auth.created")}
                 </p>
                 <div className="mt-3 rounded-xl border border-line bg-ink px-3.5 py-3">
-                  <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-faint">your DID</p>
+                  <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-faint">{t("auth.didLabel")}</p>
                   <p className="mt-1 break-all font-mono text-[12.5px] leading-relaxed text-violet3">{identity.did}</p>
                 </div>
 
                 <div className="mt-3 rounded-xl border border-gold/35 bg-gold/8 px-3.5 py-2.5 text-[12px] leading-relaxed text-gold">
-                  <b>Back up your key now.</b> It is the only way to restore this identity — AiDe cannot recover it.
+                  {t("auth.backupNow")}
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-2">
@@ -220,13 +208,13 @@ export default function AuthGate({
                     className="row-hl flex items-center justify-center gap-2 rounded-xl border border-line py-2.5 text-[12.5px] font-bold text-dim hover:text-text"
                   >
                     {copied === "did" ? <CheckIcon className="h-3.5 w-3.5 text-mint" /> : <CopyIcon className="h-3.5 w-3.5" />}
-                    {copied === "did" ? "Copied" : "Copy DID"}
+                    {copied === "did" ? t("common.copied") : t("profile.copyDid")}
                   </button>
                   <button
                     onClick={() => download(identity)}
                     className="row-hl flex items-center justify-center gap-2 rounded-xl border border-line py-2.5 text-[12.5px] font-bold text-dim hover:text-text"
                   >
-                    <KeyIcon className="h-3.5 w-3.5" /> Download key
+                    <KeyIcon className="h-3.5 w-3.5" /> {t("auth.downloadKey")}
                   </button>
                 </div>
 
@@ -240,7 +228,7 @@ export default function AuthGate({
 
         {phase === "ready" && identity && (
           <p className="mt-3 text-center font-mono text-[10px] text-faint">
-            {shortDid(identity.did)} · ECDSA P-256 · stored in this browser only
+            {shortDid(identity.did)} · ECDSA P-256 · {t("auth.storedNote")}
           </p>
         )}
       </div>
