@@ -48,6 +48,26 @@ export const BoltIcon = (p: IP) => (
   </S>
 );
 
+export const SpeakerIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" />
+    <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" />
+  </S>
+);
+
+export const SpeakerOffIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" />
+    <path d="M16 9.5l5 5M21 9.5l-5 5" />
+  </S>
+);
+
+export const MenuIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M4 6.5h16M4 12h16M4 17.5h16" />
+  </S>
+);
+
 export const PanelLeftIcon = (p: IP) => (
   <S {...p}>
     <rect x="3" y="4" width="18" height="16" rx="2.5" />
