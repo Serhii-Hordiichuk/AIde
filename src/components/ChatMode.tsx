@@ -225,7 +225,7 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
           <div className="flex h-full flex-col items-center justify-center px-6 pb-[8vh]">
             <div className="anim-rise flex flex-col items-center">
               <div className="floaty mb-5">
-                <BrandMark className="h-14 w-14 drop-shadow-[0_0_32px_#615ced66]" />
+                <BrandMark className="h-14 w-14 drop-shadow-[0_0_30px_color-mix(in_srgb,var(--t-violet)_45%,transparent)]" />
               </div>
               <h1 className="text-[26px] font-extrabold tracking-tight">
                 {t("chat.hello")} <span className="text-violet2">AiDe</span>
@@ -253,7 +253,7 @@ export default function ChatMode({ conv, patchConv, cfgs, catalog, modelId, onMo
 
       {/* composer */}
       <div className="mx-auto w-full max-w-[800px] px-5 pb-5">
-        <div className="rounded-[26px] border border-line2 bg-panel2 p-3 transition-all focus-within:border-violet/50 focus-within:shadow-[0_0_0_1px_#615ced44,0_12px_40px_-12px_#00000099]">
+        <div className="rounded-[26px] border border-line2 bg-panel2 p-3 transition-all focus-within:border-violet/50 focus-within:shadow-[0_0_0_1px_color-mix(in_srgb,var(--t-violet)_30%,transparent),0_12px_40px_-12px_#00000099]">
           <textarea
             ref={taRef}
             value={input}

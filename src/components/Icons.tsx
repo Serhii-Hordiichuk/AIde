@@ -23,14 +23,31 @@ export const BrandMark = ({ className = "w-8 h-8" }: IP) => (
   <svg viewBox="0 0 32 32" className={className} aria-hidden>
     <defs>
       <linearGradient id="aide-g" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="#8b7cff" />
-        <stop offset="1" stopColor="#615ced" />
+        <stop offset="0" style={{ stopColor: "var(--t-violet2)" }} />
+        <stop offset="1" style={{ stopColor: "var(--t-violet)" }} />
       </linearGradient>
     </defs>
-    <rect x="1.5" y="1.5" width="29" height="29" rx="9" fill="#1d1d22" stroke="url(#aide-g)" strokeOpacity="0.7" strokeWidth="1.5" />
+    <rect x="1.5" y="1.5" width="29" height="29" rx="9" style={{ fill: "var(--t-panel3)" }} stroke="url(#aide-g)" strokeOpacity="0.7" strokeWidth="1.5" />
     <path d="M10 11l5.5 5L10 21" stroke="url(#aide-g)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    <rect x="17.5" y="19" width="7" height="2.6" rx="1.3" fill="#ffc24b" />
+    <rect x="17.5" y="19" width="7" height="2.6" rx="1.3" style={{ fill: "var(--t-gold)" }} />
   </svg>
+);
+
+/** 中文专属印章 — a cinnabar chop stamp, shown only in the zh variant. */
+export const Seal = ({ ch = "智", className = "h-9 w-9" }: { ch?: string; className?: string }) => (
+  <span
+    aria-hidden
+    className={`inline-flex select-none items-center justify-center rounded-[6px] border-2 font-display font-bold leading-none ${className}`}
+    style={{
+      borderColor: "var(--t-violet)",
+      color: "var(--t-violet)",
+      background: "color-mix(in srgb, var(--t-violet) 12%, transparent)",
+      transform: "rotate(-4deg)",
+      boxShadow: "0 2px 10px color-mix(in srgb, var(--t-violet) 30%, transparent)",
+    }}
+  >
+    {ch}
+  </span>
 );
 
 export const Wordmark = ({ className = "" }: IP) => (

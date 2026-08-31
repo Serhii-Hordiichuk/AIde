@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PROVIDERS } from "../data/providers";
-import { BrandMark, Wordmark, ChatIcon, CodeIcon, TranslateIcon, KeyIcon, CheckIcon, GlobeIcon, MicIcon, BoltIcon } from "./Icons";
+import { BrandMark, Wordmark, ChatIcon, CodeIcon, TranslateIcon, KeyIcon, CheckIcon, GlobeIcon, MicIcon, BoltIcon, Seal } from "./Icons";
 import { ThemeToggle, LangPicker } from "./Appearance";
 import { useI18n } from "../lib/i18n";
 import type { ThemeMode } from "../lib/theme";
@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function Landing({ onStart, onRestore, theme }: Props) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
 
   /* scroll reveals (re-run when language changes so fresh nodes animate) */
@@ -41,25 +41,9 @@ export default function Landing({ onStart, onRestore, theme }: Props) {
 
   const SCENES = useMemo(
     () => [
-      {
-        prompt: t("land.scene1p"),
-        reply:
-          "⏺ Architect · 4 subtasks · 3 specialists\n" +
-          "[UI]   + index.html  (86 lines)\n" +
-          "[FE]   + timer.js    (41 lines)\n" +
-          "[QA]   ✓ build passed · preview is live",
-      },
-      {
-        prompt: t("land.scene2p"),
-        reply:
-          "Retrieval-Augmented Generation: the model looks up\n" +
-          "relevant chunks in a vector index first, then answers\n" +
-          "grounded in them — memory you can point to.",
-      },
-      {
-        prompt: t("land.scene3p"),
-        reply: "→ en · Good evening, colleague\n🔊 spoken aloud · auto-detected",
-      },
+      { prompt: t("land.scene1p"), reply: t("land.scene1r") },
+      { prompt: t("land.scene2p"), reply: t("land.scene2r") },
+      { prompt: t("land.scene3p"), reply: t("land.scene3r") },
     ],
     [t]
   );
@@ -126,9 +110,10 @@ export default function Landing({ onStart, onRestore, theme }: Props) {
       {/* ---------- hero: the terminal IS the product ---------- */}
       <section id="top" className="relative mx-auto grid max-w-[1120px] items-center gap-10 px-4 pb-14 pt-10 sm:px-5 lg:grid-cols-[1.05fr_1fr] lg:pb-16 lg:pt-20">
         <div>
-          <p className="mb-5 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-violet3">
+          <p className="mb-5 flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.22em] text-violet3">
             <span className="pulse-live inline-block h-1.5 w-1.5 rounded-full bg-mint" />
             {t("land.kicker")}
+            {lang === "zh" && <Seal ch="智" className="ml-1 h-7 w-7 text-[13px]" />}
           </p>
           <h1 className="font-display text-[clamp(30px,5.4vw,62px)] font-bold leading-[1.05] tracking-tight">
             <span className="mask-line"><span style={{ animationDelay: "0.05s" }}>{t("land.hero1")}</span></span>
@@ -382,7 +367,7 @@ export default function Landing({ onStart, onRestore, theme }: Props) {
           <div className="tint tint-mint" style={{ top: "-160px", right: "-80px" }} />
         </div>
         <div className="relative mx-auto flex max-w-[1120px] flex-col items-center px-4 py-14 text-center sm:px-5 lg:py-20">
-          <BrandMark className="floaty h-12 w-12 drop-shadow-[0_0_30px_#615ced66]" />
+          <BrandMark className="floaty h-12 w-12 drop-shadow-[0_0_28px_color-mix(in_srgb,var(--t-violet)_45%,transparent)]" />
           <h2 className="reveal mt-6 font-display text-[clamp(26px,4vw,44px)] font-bold leading-tight tracking-tight">
             {t("land.finalA")} <span className="text-violet2">{t("land.finalB")}</span> {t("land.finalC")}
           </h2>

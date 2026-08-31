@@ -3,7 +3,7 @@ import {
   createIdentity, importIdentity, identityBackup, shortDid,
   type Identity,
 } from "../lib/did";
-import { BrandMark, Wordmark, CheckIcon, CopyIcon, KeyIcon, BoltIcon } from "./Icons";
+import { BrandMark, Wordmark, CheckIcon, CopyIcon, KeyIcon, BoltIcon, Seal } from "./Icons";
 import { ThemeToggle, LangPicker } from "./Appearance";
 import { useI18n } from "../lib/i18n";
 import type { ThemeMode } from "../lib/theme";
@@ -21,7 +21,7 @@ export default function AuthGate({
   onBack?: () => void;
   theme: { mode: ThemeMode; setMode: (m: ThemeMode) => void };
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [phase, setPhase] = useState<Phase>(initial);
   const [log, setLog] = useState<string[]>([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -103,10 +103,13 @@ export default function AuthGate({
         {/* brand */}
         <div className="mb-6 flex items-center gap-3">
           <span className="floaty">
-            <BrandMark className="h-11 w-11 drop-shadow-[0_0_24px_#615ced66]" />
+            <BrandMark className="h-11 w-11 drop-shadow-[0_0_22px_color-mix(in_srgb,var(--t-violet)_45%,transparent)]" />
           </span>
           <div>
-            <Wordmark className="text-[22px] leading-none" />
+            <div className="flex items-center gap-2.5">
+              <Wordmark className="text-[22px] leading-none" />
+              {lang === "zh" && <Seal ch="智" className="h-8 w-8 text-[15px]" />}
+            </div>
             <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.22em] text-faint">
               {t("app.tagline")}
             </p>
