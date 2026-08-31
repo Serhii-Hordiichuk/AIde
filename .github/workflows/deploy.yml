@@ -1,0 +1,91 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build (relative base for Pages)
+        run: npx vite build --base=./
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Ensure GitHub Pages is enabled (Source = GitHub Actions)
+        run: |
+          set -e
+          REPO="${{ github.repository }}"
+          echo "REPO=$REPO"
+          CODE=$(curl -s -o /tmp/pages.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/pages")
+          if [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then
+            SRC=$(python3 -c "import json;print(json.load(open('/tmp/pages.json')).get('build_type',''))" 2>/dev/null || echo "")
+            if [ "$SRC" = "workflow" ]; then
+              echo "Pages already uses GitHub Actions source."
+            else
+              echo "Pages exists but uses a different source — switching to workflow…"
+              curl -sf -X PUT \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github+json" \
+                -d '{"build_type":"workflow"}' \
+                "https://api.github.com/repos/$REPO/pages" >/dev/null
+              echo "Switched."
+            fi
+          elif [ "$CODE" = "404" ]; then
+            echo "Pages not enabled — enabling via API…"
+            curl -sf -X POST \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              -d '{"build_type":"workflow"}' \
+              "https://api.github.com/repos/$REPO/pages" >/dev/null || {
+                echo "::error::Couldn't enable Pages automatically (token is read-only)."
+                echo "::error::Do ONE of these once, then re-run this workflow:"
+                echo "::error::  A) https://github.com/$REPO/settings/actions  →  'Workflow permissions'  →  select 'Read and write permissions'  →  Save."
+                echo "::error::  B) https://github.com/$REPO/settings/pages  →  'Build and deployment'  →  Source: 'GitHub Actions'."
+                echo "::error::Then open the Actions tab and click 'Re-run all jobs'."
+                exit 1
+              }
+            echo "Pages enabled."
+          else
+            echo "::error::Unexpected response ($CODE) from the Pages API."
+            exit 1
+          fi
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
