@@ -1,74 +1,79 @@
-import { useI18n, LANG_OPTIONS, type Lang } from "../lib/i18n";
+import { useEffect, useRef, useState } from "react";
 import type { ThemeMode } from "../lib/theme";
-import { SunIcon, MoonIcon, MonitorIcon, GlobeIcon } from "./Icons";
+import { LANG_OPTIONS, useI18n, type Lang } from "../lib/i18n";
+import { SunIcon, MoonIcon, MonitorIcon, CheckIcon, GlobeIcon } from "./Icons";
 
-/* Compact cycling theme button: auto → light → dark → auto */
+/** Theme cycler: auto → light → dark. */
 export function ThemeToggle({ mode, setMode }: { mode: ThemeMode; setMode: (m: ThemeMode) => void }) {
-  const { t } = useI18n();
   const next: Record<ThemeMode, ThemeMode> = { auto: "light", light: "dark", dark: "auto" };
-  const Icon = mode === "auto" ? MonitorIcon : mode === "light" ? SunIcon : MoonIcon;
-  const label = mode === "auto" ? t("ui.themeAuto") : mode === "light" ? t("ui.themeLight") : t("ui.themeDark");
+  const Icon = mode === "light" ? SunIcon : mode === "dark" ? MoonIcon : MonitorIcon;
+  const label = mode === "light" ? "ui.themeLight" : mode === "dark" ? "ui.themeDark" : "ui.themeAuto";
   return (
     <button
       onClick={() => setMode(next[mode])}
-      className="row-hl flex h-9 w-9 items-center justify-center rounded-xl border border-line text-dim transition-all hover:text-text"
-      title={`${t("ui.theme")}: ${label}`}
-      aria-label={t("ui.theme")}
+      className="row-hl flex h-8 items-center gap-1.5 rounded-lg border border-line px-2 text-dim transition-all hover:border-line2 hover:text-text"
+      title={`Theme: ${label}`}
+      aria-label={`Theme: ${label}`}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-3.5 w-3.5" />
+      <span className="hidden text-[11.5px] font-bold sm:inline">{label === "ui.themeLight" ? "☀" : label === "ui.themeDark" ? "☾" : "⚙"} </span>
     </button>
   );
 }
 
-/* Segmented theme control (auto / light / dark) for the settings panel */
-export function ThemeSegment({ mode, setMode }: { mode: ThemeMode; setMode: (m: ThemeMode) => void }) {
-  const { t } = useI18n();
-  const opts: { id: ThemeMode; label: string; icon: typeof SunIcon }[] = [
-    { id: "auto", label: t("ui.themeAuto"), icon: MonitorIcon },
-    { id: "light", label: t("ui.themeLight"), icon: SunIcon },
-    { id: "dark", label: t("ui.themeDark"), icon: MoonIcon },
-  ];
-  return (
-    <div className="flex items-center gap-1 rounded-xl border border-line bg-panel p-1">
-      {opts.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => setMode(o.id)}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-bold transition-all ${
-            mode === o.id ? "bg-panel3 text-text shadow-sm" : "text-faint hover:text-dim"
-          }`}
-        >
-          <o.icon className="h-3.5 w-3.5" />
-          <span className="max-[380px]:hidden">{o.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* Language dropdown */
+/** Language picker popover. */
 export function LangPicker({ compact }: { compact?: boolean }) {
   const { lang, setLang, t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
   const current = LANG_OPTIONS.find((l) => l.code === lang) ?? LANG_OPTIONS[0];
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("mousedown", h);
+    return () => window.removeEventListener("mousedown", h);
+  }, []);
+
+  const pick = (code: Lang) => {
+    setLang(code);
+    setOpen(false);
+  };
+
   return (
-    <label
-      className="row-hl flex cursor-pointer items-center gap-2 rounded-xl border border-line px-2.5 py-2 text-dim transition-all hover:text-text"
-      title={t("ui.language")}
-    >
-      <GlobeIcon className="h-4 w-4 shrink-0" />
-      <select
-        value={lang}
-        onChange={(e) => setLang(e.target.value as Lang)}
-        className="cursor-pointer bg-transparent text-[12.5px] font-bold text-text outline-none"
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="row-hl flex h-8 items-center gap-1.5 rounded-lg border border-line px-2 text-dim transition-all hover:border-line2 hover:text-text"
+        title={t("ui.language")}
         aria-label={t("ui.language")}
       >
-        {LANG_OPTIONS.map((l) => (
-          <option key={l.code} value={l.code} className="bg-panel text-text">
-            {l.native}
-          </option>
-        ))}
-      </select>
-      {compact && <span className="sr-only">{current.label}</span>}
-    </label>
+        <GlobeIcon className="h-3.5 w-3.5" />
+        <span className={`text-[11.5px] font-bold ${compact ? "hidden" : ""}`}>{current.native}</span>
+      </button>
+      {open && (
+        <>
+          <div className="backdrop-in fixed inset-0 z-40 md:hidden" onClick={() => setOpen(false)} />
+          <div className="anim-rise absolute end-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-xl border border-line2 bg-panel py-1 shadow-xl">
+            {LANG_OPTIONS.map((l) => (
+              <button
+                key={l.code}
+                onClick={() => pick(l.code)}
+                className={`flex w-full items-center justify-between px-3.5 py-2 text-left text-[13px] transition-colors ${
+                  l.code === lang ? "font-bold text-violet3" : "text-dim hover:bg-panel2 hover:text-text"
+                }`}
+              >
+                <span>
+                  {l.native}
+                  <span className="ms-2 text-[10.5px] text-faint">{l.label}</span>
+                </span>
+                {l.code === lang && <CheckIcon className="h-3.5 w-3.5" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

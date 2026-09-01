@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { getModelInfo, isAutoModel, resolveAutoModel } from "../data/models";
-import type { LiveCatalog } from "../lib/modelFetch";
 import { providerById, PROVIDERS } from "../data/providers";
-import { scaffoldProject, generateProjectWithLLM, buildPreviewDoc, CODER_SUGGESTIONS } from "../lib/engine";
+import { scaffoldProject, generateProjectWithLLM, buildPreviewDoc } from "../lib/engine";
 import { ROLES, buildPlan, buildLLMPlan, uniqueRoles, type Subtask } from "../lib/plan";
 import type { Project, ProjectFile, ProviderCfg } from "../lib/store";
+import type { LiveCatalog } from "../lib/modelFetch";
 import { useI18n } from "../lib/i18n";
 import {
   BrandMark, SendIcon, CodeIcon, EyeIcon, TerminalIcon, RefreshIcon, PlayIcon,
-  CheckIcon, FileIcon, OpenIcon, XIcon,
+  CheckIcon, FileIcon, OpenIcon, XIcon, ListIcon,
 } from "./Icons";
 
 type Tab = "code" | "preview" | "term";
@@ -18,28 +18,28 @@ interface Props {
   patchProject: (id: string, fn: (p: Project) => Project) => void;
   createProject: (prompt: string) => string;
   cfgs: Record<string, ProviderCfg>;
-  modelId: string;
   catalog: LiveCatalog;
+  modelId: string;
 }
 
 const COLOR_WORDS: Record<string, string> = {
-  green: "#3ecf8e", teal: "#0f9d8f", mint: "#31e5ae",
-  violet: "#8b7cff", purple: "#8b7cff",
-  blue: "#5b8cff", cyan: "#58c4dd",
-  red: "#ff6b6b", pink: "#ff8ac2",
-  yellow: "#ffc24b", orange: "#ff9950",
+  green: "#3ecf8e", teal: "#0f9d8f", violet: "#8b7cff", purple: "#8b7cff",
+  blue: "#5b8cff", cyan: "#58c4dd", red: "#ff6b6b", pink: "#ff8ac2",
+  yellow: "#ffc24b", orange: "#ff9950", black: "#1d1d22", white: "#f5f5f7",
+  зелени: "#3ecf8e", синь: "#5b8cff", червон: "#ff6b6b", жовт: "#ffc24b",
+  绿: "#3ecf8e", 蓝: "#5b8cff", 红: "#ff6b6b", 金: "#d9a441",
+  أخضر: "#3ecf8e", أزرق: "#5b8cff", أحمر: "#ff6b6b",
 };
 
 const ROLE_TERM: Record<string, string> = {
   ARCH: "text-gold",
   UI: "text-cyanic",
-  FE: "text-brand",
-  FS: "text-brand",
+  FE: "text-violet3",
   DOC: "text-[#c9a0ff]",
   QA: "text-[#ff8a5c]",
 };
 
-export default function CoderMode({ project, patchProject, createProject, cfgs, modelId, catalog }: Props) {
+export default function CoderMode({ project, patchProject, createProject, cfgs, catalog, modelId }: Props) {
   const { t } = useI18n();
   const [prompt, setPrompt] = useState("");
   const [follow, setFollow] = useState("");
@@ -51,13 +51,15 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
   const [showPlan, setShowPlan] = useState(false);
   const termRef = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
+  const timers = useRef<number[]>([]);
 
-  const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs, catalog) : getModelInfo(modelId);
+  const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs, freshOf(catalog)) : getModelInfo(modelId);
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
 
-  const log = (line: string) => setTerm((t) => [...t, line]);
-  const mark = (id: string, state: Subtask["state"]) =>
-    setPlan((prev) => prev.map((s) => (s.id === id ? { ...s, state } : s)));
+  const log = (line: string) => setTerm((prev) => [...prev, line]);
+  const later = (fn: () => void, ms: number) => {
+    timers.current.push(window.setTimeout(fn, ms));
+  };
 
   useEffect(() => {
     const el = termRef.current;
@@ -68,6 +70,8 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
     const el = feedRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [plan, term]);
+
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   /* ---------- build pipeline: architect → specialists → QA ---------- */
   useEffect(() => {
@@ -82,133 +86,104 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
 
     let cancelled = false;
     const ac = new AbortController();
-    const timers: number[] = [];
-    const sleep = (ms: number) =>
-      new Promise<void>((r) => {
-        timers.push(window.setTimeout(r, ms));
-      });
-    const guard = () => cancelled || ac.signal.aborted;
-
-    const addFile = (f: ProjectFile, idx: number) => {
-      patchProject(pid, (p) => ({ ...p, files: [...p.files, f] }));
-      setFileIdx(idx);
-    };
-
-    async function runFileSteps(files: ProjectFile[], _templateId: string) {
-      for (let i = 0; i < files.length; i++) {
-        if (guard()) return;
-        const f = files[i];
-        setPlan((prev) => prev.map((s) => (s.id === f.name || s.produces === f.name ? { ...s, state: "run" } : s)));
-        const role = f.name.endsWith(".css") || f.name.endsWith(".html") ? "UI" : f.name.toLowerCase().endsWith(".md") ? "DOC" : "FE";
-        log(`[${role}] working on ${f.name}…`);
-        await sleep(620);
-        if (guard()) return;
-        log(`[${role}] + ${f.name} (${f.content.split("\n").length} lines)`);
-        addFile(f, i);
-        setPlan((prev) => prev.map((s) => (s.id === f.name || s.produces === f.name ? { ...s, state: "done" } : s)));
-        await sleep(240);
-      }
-    }
-
-    async function finish() {
-      if (guard()) return;
-      mark("qa", "run");
-      log("[QA] vite build — inlining styles & scripts…");
-      await sleep(900);
-      if (guard()) return;
-      log("[QA] ✓ dist/index.html built · smoke test passed");
-      mark("qa", "done");
-      patchProject(pid, (p) => ({ ...p, status: "ready" }));
-      setTab("preview");
-      setPreviewKey((k) => k + 1);
-    }
 
     (async () => {
-      await sleep(950);
-      if (guard()) return;
+      await sleep(900);
+      if (cancelled) return;
 
-      const canLLM = !!provider.keyless || !!provider.local || !!cfgs[model.providerId]?.key?.trim();
+      const llmFiles = await generateProjectWithLLM(
+        project.prompt, model.providerId, cfgs[model.providerId], model.apiId,
+        (l) => log(l), ac.signal
+      ).catch(() => null);
+      if (cancelled) return;
 
-      if (canLLM) {
-        const llmPlan = buildLLMPlan(model.name);
-        setPlan(llmPlan);
-        mark("plan", "done");
-        log(`[ARCH] ✓ decomposed → ${llmPlan.length} subtasks · ${uniqueRoles(llmPlan).length} specialists`);
-        await sleep(400);
-        if (guard()) return;
-
-        mark("fs", "run");
-        const llmFiles = await generateProjectWithLLM(
-          project!.prompt, model.providerId, cfgs[model.providerId], model.id,
-          (l) => log(l), ac.signal
-        ).catch(() => null);
-        if (guard()) return;
-
-        if (llmFiles) {
-          const idx = llmFiles.find((f) => f.name === "index.html");
-          const readme = llmFiles.find((f) => f.name === "README.md");
-          if (idx) addFile(idx, 0);
-          mark("fs", "done");
-          mark("doc", "run");
-          await sleep(500);
-          if (guard()) return;
-          if (readme) addFile(readme, 1);
-          mark("doc", "done");
-          patchProject(pid, (p) => ({ ...p, templateId: "llm" }));
-          await finish();
-          return;
-        }
-
-        // LLM route failed — the architect reroutes to the built-in generator
-        log("[ARCH] rerouting → built-in generator");
-        const sc = scaffoldProject(project!.prompt);
-        patchProject(pid, (p) => ({ ...p, name: sc.name, templateId: sc.templateId }));
-        const p2 = buildPlan(sc.templateId, sc.files.map((f) => f.name)).map((s) =>
-          s.id === "plan" ? { ...s, state: "done" as const, label: "Re-decomposed for the built-in generator" } : s
-        );
-        setPlan(p2);
-        await sleep(350);
-        await runFileSteps(sc.files, sc.templateId);
-        await finish();
+      if (llmFiles) {
+        log("[ARCH] ✓ decomposed · generating with the live model");
+        setPlan(buildLLMPlan(model.name).map((s) => (s.id === "plan" ? { ...s, state: "done" } : s)));
+        later(() => setPlan((p) => p.map((s) => (s.id === "fs" ? { ...s, state: "run" } : s))), 300);
+        const idx = llmFiles.find((f) => f.name.endsWith(".html")) ?? llmFiles[0];
+        later(() => {
+          patchProject(pid, (p) => ({ ...p, files: [...p.files, idx], templateId: "llm" }));
+          setFileIdx(0);
+          setPlan((p) => p.map((s) => (s.id === "fs" ? { ...s, state: "done" } : s)));
+        }, 1200);
+        const rest = llmFiles.filter((f) => f !== idx);
+        later(() => setPlan((p) => p.map((s) => (s.id === "doc" ? { ...s, state: "run" } : s))), 1400);
+        rest.forEach((f, i) => {
+          later(() => {
+            patchProject(pid, (p) => ({ ...p, files: [...p.files, f] }));
+            setFileIdx(i + 1);
+          }, 1600 + i * 500);
+        });
+        later(() => {
+          setPlan((p) => p.map((s) => (s.id === "doc" ? { ...s, state: "done" } : s)));
+          finish(pid);
+        }, 1600 + rest.length * 500 + 400);
         return;
       }
 
-      // no reachable free API — built-in generator from the start
-      log("[ARCH] no free API reachable — using the built-in generator");
-      const sc = scaffoldProject(project!.prompt);
+      /* built-in generator route */
+      log("[ARCH] rerouting → built-in generator");
+      const sc = scaffoldProject(project.prompt);
       patchProject(pid, (p) => ({ ...p, name: sc.name, templateId: sc.templateId }));
       const p2 = buildPlan(sc.templateId, sc.files.map((f) => f.name));
       setPlan(p2);
-      mark("plan", "done");
       log(`[ARCH] ✓ decomposed → ${p2.length} subtasks · ${uniqueRoles(p2).length} specialists`);
+
       await sleep(400);
-      await runFileSteps(sc.files, sc.templateId);
-      await finish();
+      for (let i = 0; i < sc.files.length; i++) {
+        if (cancelled) return;
+        const f = sc.files[i];
+        setPlan((p) => p.map((s) => (s.id === f.name ? { ...s, state: "run" } : s)));
+        const role = f.name.endsWith(".css") || f.name.endsWith(".html") ? "UI" : f.name.toLowerCase().endsWith(".md") ? "DOC" : "FE";
+        log(`[${role}] working on ${f.name}…`);
+        await sleep(620);
+        if (cancelled) return;
+        log(`[${role}] + ${f.name} (${f.content.split("\n").length} lines)`);
+        patchProject(pid, (p) => ({ ...p, files: [...p.files, f] }));
+        setFileIdx(i);
+        setPlan((p) => p.map((s) => (s.id === f.name ? { ...s, state: "done" } : s)));
+        await sleep(240);
+      }
+      finish(pid);
     })();
+
+    function finish(pjId: string) {
+      if (cancelled) return;
+      setPlan((p) => p.map((s) => (s.id === "qa" ? { ...s, state: "run" } : s)));
+      log("[QA] vite build — inlining styles & scripts…");
+      later(() => {
+        log("[QA] ✓ dist/index.html built · smoke test passed");
+        setPlan((p) => p.map((s) => (s.id === "qa" ? { ...s, state: "done" } : s)));
+        patchProject(pjId, (p) => ({ ...p, status: "ready" }));
+        setTab("preview");
+        setPreviewKey((k) => k + 1);
+      }, 900);
+    }
 
     return () => {
       cancelled = true;
       ac.abort();
-      timers.forEach(clearTimeout);
+      timers.current.forEach(clearTimeout);
+      timers.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, project?.status === "building"]);
 
   /* ---------- empty state ---------- */
   if (!project) {
+    const suggs = [t("coder.sugg1"), t("coder.sugg2"), t("coder.sugg3"), t("coder.sugg4")];
     return (
-      <div className="flex h-full flex-col items-center justify-center px-6 pb-10">
-        <div className="anim-rise flex flex-col items-center">
-          <div className="floaty mb-6">
-            <BrandMark className="h-14 w-14 drop-shadow-[0_0_28px_#615ced66]" />
-          </div>
-          <h1 className="font-display text-[clamp(24px,3vw,32px)] font-bold tracking-tight">
-            AiDe <span className="text-brand">Coder</span>
-          </h1>
-          <p className="mt-2 text-[14px] text-dim">Describe an app — the crew builds it from scratch.</p>
+      <div className="flex h-full flex-col items-center justify-center overflow-y-auto px-4 py-12">
+        <div className="floaty mb-5">
+          <BrandMark className="h-16 w-16 drop-shadow-[0_0_28px_color-mix(in_srgb,var(--t-violet)_45%,transparent)]" />
         </div>
-        <div className="mt-8 w-full max-w-[620px]">
-          <div className="composer-glow flex items-end gap-2 rounded-2xl border border-line2 bg-panel2 p-2.5">
+        <h1 className="text-[24px] font-extrabold tracking-tight sm:text-[26px]">
+          AiDe <span className="text-violet2">{t("coder.title")}</span>
+        </h1>
+        <p className="mt-2 max-w-[520px] text-center text-[14px] leading-relaxed text-dim">{t("coder.emptySub")}</p>
+        <div className="mt-7 w-full max-w-[560px]">
+          <div className="flex items-end gap-2 rounded-3xl border border-line2 bg-panel2 p-2.5 transition-all focus-within:border-violet/50">
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -218,26 +193,25 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                   if (prompt.trim()) createProject(prompt.trim());
                 }
               }}
-              rows={1}
-              placeholder='e.g. a landing page for a coffee shop "Grain"'
+              rows={2}
+              placeholder={t("coder.placeholder")}
               className="flex-1 resize-none bg-transparent px-2 py-1.5 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
             />
             <button
               onClick={() => prompt.trim() && createProject(prompt.trim())}
               disabled={!prompt.trim()}
-              className="btn-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-xl disabled:opacity-35 disabled:saturate-50"
-              title="Create project"
+              className="btn-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-xl disabled:opacity-35"
+              title={t("coder.create")}
             >
               <PlayIcon className="h-4 w-4" />
             </button>
           </div>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {CODER_SUGGESTIONS.map((s, i) => (
+            {suggs.map((s) => (
               <button
                 key={s}
                 onClick={() => createProject(s)}
-                style={{ animationDelay: `${i * 60}ms` }}
-                className="anim-rise row-hl rounded-full border border-line bg-panel/70 px-3.5 py-2 text-[12.5px] font-semibold text-dim transition-all hover:-translate-y-0.5 hover:border-brand/45 hover:text-text"
+                className="row-hl rounded-full border border-line bg-panel/70 px-3.5 py-1.5 text-[12.5px] text-dim transition-all hover:-translate-y-0.5 hover:border-violet/45 hover:text-text"
               >
                 {s}
               </button>
@@ -252,7 +226,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
   const previewDoc = buildPreviewDoc(project.files);
   const current = project.files[Math.min(fileIdx, Math.max(0, project.files.length - 1))];
   const roles = uniqueRoles(plan);
-  void previewKey;
+  const doneCount = plan.filter((s) => s.state === "done").length;
 
   function applyFollowUp() {
     const text = follow.trim();
@@ -271,8 +245,8 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
               ...f,
               content: f.content
                 .replace(/(--accent:\s*)#[0-9a-fA-F]{3,8}/, "$1" + hex)
-                .replace(/#0f9d8f/gi, hex)
-                .replace(/#0c8377/gi, hex),
+                .replace(/#615ced/gi, hex)
+                .replace(/#4f4ac4/gi, hex),
             }
           : f
       );
@@ -301,7 +275,6 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
     window.open(URL.createObjectURL(blob), "_blank");
   }
 
-  /* plan feed — shared between the desktop panel and the mobile bottom sheet */
   const feedRows = (
     <>
       {plan.map((s) => {
@@ -324,7 +297,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                 {s.label}
               </span>
               {s.produces && (
-                <span className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] text-faint">
+                <span className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] text-faint ltr-keep">
                   <FileIcon className="h-2.5 w-2.5" />
                   {s.produces}
                 </span>
@@ -334,7 +307,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
               {s.state === "done" ? (
                 <CheckIcon className="h-3.5 w-3.5 text-mint" />
               ) : s.state === "run" ? (
-                <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line2 border-t-brand" />
+                <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line2 border-t-violet3" />
               ) : (
                 <span className="block h-2 w-2 translate-x-[3px] rounded-full border border-line2" />
               )}
@@ -345,7 +318,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
 
       {project.status === "ready" && (
         <div className="step-in mt-2 rounded-xl border border-line bg-panel px-3 py-2.5 text-[12px] leading-relaxed text-dim">
-          Done — try <b className="text-brand">Preview</b>, or ask for a tweak below.
+          {t("coder.doneHint")}
         </div>
       )}
     </>
@@ -364,7 +337,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
         }}
         rows={1}
         autoFocus={autoFocus}
-        placeholder={project.status === "ready" ? "Ask the crew for a change…" : "The crew is working…"}
+        placeholder={project.status === "ready" ? t("coder.askChange") : t("coder.working")}
         disabled={project.status !== "ready"}
         className="flex-1 resize-none bg-transparent px-1.5 py-1 text-[13px] outline-none placeholder:text-faint disabled:opacity-50"
       />
@@ -380,16 +353,16 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
 
   return (
     <div className="flex h-full">
-      {/* ------- specialist task board ------- */}
-      <div className="flex w-[350px] shrink-0 flex-col border-r border-line max-lg:w-[290px] max-md:hidden">
+      {/* ------- specialist task board (desktop) ------- */}
+      <div className="hidden w-[340px] shrink-0 flex-col border-e border-line md:flex max-lg:w-[290px]">
         <div className="border-b border-line px-4 py-3">
           <div className="flex items-center gap-2">
             <BrandMark className="h-6 w-6" />
             <div className="min-w-0">
               <p className="truncate text-[13.5px] font-bold">{project.name}</p>
               <p className="truncate font-mono text-[10.5px] text-faint">
-                {plan.length || "…"} subtasks · {roles.length || "…"} specialists ·{" "}
-                {project.status === "ready" ? <span className="text-mint">ready</span> : <span className="text-gold">in progress</span>}
+                {plan.length || "…"} {t("coder.subtasks")} ·{" "}
+                {project.status === "ready" ? <span className="text-mint">{t("coder.ready")}</span> : <span className="text-gold">{t("coder.inProgress")}</span>}
               </p>
             </div>
           </div>
@@ -398,7 +371,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
             <div className="mt-2 flex flex-wrap gap-1.5">
               {roles.map((r) => (
                 <span
-                  key={r.id}
+                  key={r.short}
                   className="rounded border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider"
                   style={{ color: r.color, borderColor: r.color + "55", background: r.color + "12" }}
                 >
@@ -409,16 +382,13 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
           )}
         </div>
 
-        <div ref={feedRef} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3">
-          {feedRows}
-        </div>
-
+        <div ref={feedRef} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3">{feedRows}</div>
         <div className="border-t border-line p-3">{followBox()}</div>
       </div>
 
       {/* ------- workspace ------- */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-1 border-b border-line px-3 py-2">
+        <div className="flex items-center gap-1 border-b border-line px-2 py-2 sm:px-3">
           {(
             [
               { id: "code", label: t("coder.code"), icon: CodeIcon },
@@ -430,32 +400,28 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
               key={tb.id}
               onClick={() => setTab(tb.id)}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold transition-all sm:px-3 ${
-                tab === tb.id ? "bg-brand/12 text-brand" : "text-dim hover:bg-panel2 hover:text-text"
+                tab === tb.id ? "bg-violet/12 text-violet2" : "text-dim hover:bg-panel2 hover:text-text"
               }`}
             >
               <tb.icon className="h-3.5 w-3.5" />
               <span className="max-sm:hidden">{tb.label}</span>
             </button>
           ))}
-          <div className="ml-auto flex items-center gap-1.5">
-            {/* mobile: crew plan lives in a bottom sheet */}
-            <button
-              onClick={() => setShowPlan(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-gold/12 px-2.5 py-1.5 text-[12px] font-bold text-gold transition-all hover:bg-gold/20 md:hidden"
-              title="Crew plan"
-            >
-              <CheckIcon className="h-3.5 w-3.5" />
-              Plan
-              <span className="font-mono text-[10px] opacity-80">
-                {plan.filter((s) => s.state === "done").length}/{plan.length || "…"}
-              </span>
-            </button>
+          {/* mobile: plan button */}
+          <button
+            onClick={() => setShowPlan(true)}
+            className="ms-1 flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12px] font-bold text-dim transition-all hover:border-violet/45 hover:text-violet2 md:hidden"
+          >
+            <ListIcon className="h-3.5 w-3.5" />
+            {doneCount}/{plan.length || "…"}
+          </button>
+          <div className="ms-auto flex items-center gap-1.5">
             {tab === "preview" && (
               <>
-                <button className="icon-btn" onClick={() => setPreviewKey((k) => k + 1)} title="Reload preview">
+                <button className="icon-btn" onClick={() => setPreviewKey((k) => k + 1)} title="Reload">
                   <RefreshIcon className="h-3.5 w-3.5" />
                 </button>
-                <button className="icon-btn" onClick={openPreview} title="Open in a new tab">
+                <button className="icon-btn" onClick={openPreview} title="Open in tab">
                   <OpenIcon className="h-3.5 w-3.5" />
                 </button>
               </>
@@ -463,10 +429,10 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
             {project.status === "ready" && (
               <button
                 onClick={() => patchProject(project.id, (p) => ({ ...p, status: "building", files: [] }))}
-                className="hidden items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-dim transition-all hover:border-brand/45 hover:text-brand sm:flex"
-                title="Rebuild the project from scratch"
+                className="hidden items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-dim transition-all hover:border-violet/45 hover:text-violet2 sm:flex"
+                title={t("coder.rebuild")}
               >
-                <RefreshIcon className="h-3.5 w-3.5" /> Rebuild
+                <RefreshIcon className="h-3.5 w-3.5" /> {t("coder.rebuild")}
               </button>
             )}
           </div>
@@ -474,74 +440,74 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
 
         {tab === "code" && (
           <div className="flex min-h-0 flex-1 flex-col">
-            {/* mobile: horizontal file chips */}
-            <div className="chips-scroll flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-line bg-panel/50 px-3 py-2 md:hidden">
-              {project.files.length === 0 ? (
-                <span className="font-mono text-[10.5px] text-faint">specialists are writing files…</span>
-              ) : (
-                project.files.map((f, i) => (
-                  <button
-                    key={f.name}
-                    onClick={() => setFileIdx(i)}
-                    className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10.5px] transition-all ${
-                      i === Math.min(fileIdx, project.files.length - 1)
-                        ? "border-brand/50 bg-brand/12 text-brand"
-                        : "border-line text-dim"
-                    }`}
-                  >
-                    <FileIcon className="h-3 w-3" />
-                    {f.name}
-                  </button>
-                ))
-              )}
-            </div>
-
-            <div className="flex min-h-0 flex-1">
-            <div className="hidden w-[190px] shrink-0 overflow-y-auto border-r border-line bg-panel/50 p-2 md:block">
-              <p className="px-2 pb-1.5 pt-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-faint">Files</p>
+            {/* mobile file chips */}
+            <div className="flex gap-1.5 overflow-x-auto border-b border-line bg-panel/50 px-2 py-2 md:hidden">
               {project.files.length === 0 && (
-                <p className="px-2 py-3 text-[11.5px] text-faint">Specialists are writing files…</p>
+                <span className="px-1 py-1 text-[11px] text-faint">{t("coder.writing")}</span>
               )}
               {project.files.map((f, i) => (
                 <button
                   key={f.name}
                   onClick={() => setFileIdx(i)}
-                  className={`step-in flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left font-mono text-[11.5px] transition-colors ${
-                    i === Math.min(fileIdx, project.files.length - 1) ? "bg-brand/12 text-brand" : "text-dim hover:bg-panel2"
+                  className={`shrink-0 rounded-lg border px-2.5 py-1 font-mono text-[10.5px] ltr-keep transition-colors ${
+                    i === Math.min(fileIdx, project.files.length - 1)
+                      ? "border-violet/50 bg-violet/12 text-violet3"
+                      : "border-line text-dim"
                   }`}
                 >
-                  <FileIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{f.name}</span>
+                  {f.name}
                 </button>
               ))}
             </div>
-            <div className="min-w-0 flex-1 overflow-auto bg-ink/60">
-              {current ? (
-                <div>
-                  <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-panel/90 px-4 py-2 backdrop-blur">
-                    <span className="font-mono text-[11.5px] text-brand">{current.name}</span>
-                    <span className="font-mono text-[10px] text-faint">
-                      {current.content.split("\n").length} lines · {(current.content.length / 1024).toFixed(1)} KB
+
+            <div className="flex min-h-0 flex-1">
+              {/* desktop file tree */}
+              <div className="hidden w-[190px] shrink-0 overflow-y-auto border-e border-line bg-panel/50 p-2 md:block">
+                <p className="px-2 pb-1.5 pt-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-faint">{t("coder.files")}</p>
+                {project.files.length === 0 && (
+                  <p className="px-2 py-3 text-[11.5px] text-faint">{t("coder.writing")}</p>
+                )}
+                {project.files.map((f, i) => (
+                  <button
+                    key={f.name}
+                    onClick={() => setFileIdx(i)}
+                    className={`step-in flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start font-mono text-[11.5px] transition-colors ltr-keep ${
+                      i === Math.min(fileIdx, project.files.length - 1) ? "bg-violet/12 text-violet2" : "text-dim hover:bg-panel2"
+                    }`}
+                  >
+                    <FileIcon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{f.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="min-w-0 flex-1 overflow-auto bg-ink/60">
+                {current ? (
+                  <div>
+                    <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-panel/90 px-4 py-2 backdrop-blur">
+                      <span className="font-mono text-[11.5px] text-violet2 ltr-keep">{current.name}</span>
+                      <span className="font-mono text-[10px] text-faint">
+                        {current.content.split("\n").length} lines · {(current.content.length / 1024).toFixed(1)} KB
+                      </span>
+                    </div>
+                    <pre className="px-4 py-3 font-mono text-[12px] leading-[1.65] ltr-keep" dir="ltr">
+                      {current.content.split("\n").map((line, i) => (
+                        <div key={i} className="flex">
+                          <span className="me-4 w-7 shrink-0 select-none text-end text-faint/60">{i + 1}</span>
+                          <span className="whitespace-pre-wrap break-all text-[#c9d6de]">{line || " "}</span>
+                        </div>
+                      ))}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <span className="flex items-center gap-2 font-mono text-[12px] text-faint">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-violet/25 border-t-violet3" />
+                      {t("coder.waiting")}
                     </span>
                   </div>
-                  <pre className="px-4 py-3 font-mono text-[12px] leading-[1.65]">
-                    {current.content.split("\n").map((line, i) => (
-                      <div key={i} className="flex">
-                        <span className="mr-4 w-7 shrink-0 select-none text-right text-faint/60">{i + 1}</span>
-                        <span className="whitespace-pre-wrap break-all text-[#c9d6de]">{line || " "}</span>
-                      </div>
-                    ))}
-                  </pre>
-                </div>
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <span className="flex items-center gap-2 font-mono text-[12px] text-faint">
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/25 border-t-brand" />
-                    waiting for the crew…
-                  </span>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -557,8 +523,8 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
                 className="h-full w-full border-0 bg-white"
               />
             ) : (
-              <div className="flex h-full items-center justify-center font-mono text-[12px] text-faint">
-                the preview appears after QA builds the bundle…
+              <div className="flex h-full items-center justify-center px-4 text-center font-mono text-[12px] text-faint">
+                {t("coder.previewWait")}
               </div>
             )}
           </div>
@@ -566,7 +532,7 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
 
         {tab === "term" && (
           <div className="term-scan relative min-h-0 flex-1 overflow-hidden bg-[#07090c]">
-            <div ref={termRef} className="h-full overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed">
+            <div ref={termRef} className="h-full overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed ltr-keep" dir="ltr">
               {term.map((l, i) => (
                 <TermLine key={i} l={l} />
               ))}
@@ -586,11 +552,11 @@ export default function CoderMode({ project, patchProject, createProject, cfgs, 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-bold">{project.name}</p>
                 <p className="font-mono text-[10px] text-faint">
-                  {plan.filter((s) => s.state === "done").length}/{plan.length || "…"} subtasks ·{" "}
-                  {project.status === "ready" ? <span className="text-mint">ready</span> : <span className="text-gold">in progress</span>}
+                  {doneCount}/{plan.length || "…"} {t("coder.subtasks")} ·{" "}
+                  {project.status === "ready" ? <span className="text-mint">{t("coder.ready")}</span> : <span className="text-gold">{t("coder.inProgress")}</span>}
                 </p>
               </div>
-              <button onClick={() => setShowPlan(false)} className="icon-btn" title="Close" aria-label="Close plan">
+              <button onClick={() => setShowPlan(false)} className="icon-btn" title={t("common.close")} aria-label={t("common.close")}>
                 <XIcon className="h-4 w-4" />
               </button>
             </div>
@@ -616,7 +582,7 @@ function TermLine({ l }: { l: string }) {
   return (
     <p
       className={`term-line whitespace-pre-wrap ${
-        l.startsWith("✓") ? "text-mint" : l.startsWith("⚠") ? "text-gold" : l.startsWith("—") ? "text-brand" : "text-dim"
+        l.startsWith("✓") ? "text-mint" : l.startsWith("⚠") ? "text-gold" : l.startsWith("—") ? "text-violet3" : "text-dim"
       }`}
     >
       {l}
@@ -624,4 +590,14 @@ function TermLine({ l }: { l: string }) {
   );
 }
 
+function sleep(ms: number) {
+  return new Promise<void>((r) => setTimeout(r, ms));
+}
 
+function freshOf(catalog: LiveCatalog): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [pid, entry] of Object.entries(catalog)) {
+    if (entry?.models?.length) out[pid] = entry.models;
+  }
+  return out;
+}

@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { PROVIDERS, providerById } from "../data/providers";
-import {
-  dynId, getModelInfo, isAutoModel, resolveAutoModel,
-} from "../data/models";
+import { dynId, getModelInfo, isAutoModel, resolveAutoModel } from "../data/models";
 import type { LiveCatalog } from "../lib/modelFetch";
 import type { ProviderCfg } from "../lib/store";
+import { useI18n } from "../lib/i18n";
 import {
   ChevronDown, CheckIcon, BoltIcon, GiftIcon, ServerIcon, RefreshIcon, KeyIcon,
 } from "./Icons";
-import { useI18n } from "../lib/i18n";
 
 const LIST_CAP = 60;
 
@@ -28,12 +26,11 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
   const ref = useRef<HTMLDivElement>(null);
 
   const auto = isAutoModel(modelId);
-  const resolved = auto ? resolveAutoModel(modelId, cfgs, catalog) : getModelInfo(modelId);
+  const resolved = auto ? resolveAutoModel(modelId, cfgs, freshOf(catalog)) : getModelInfo(modelId);
   const provider = providerById.get(resolved.providerId);
 
   const live = freshOf(catalog);
 
-  /* click-outside */
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -42,7 +39,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
     return () => window.removeEventListener("mousedown", h);
   }, []);
 
-  /* when the dropdown opens, pull catalogs for every reachable provider that has none yet */
+  /* when the dropdown opens, pull catalogs for reachable providers that have none yet */
   useEffect(() => {
     if (!open) return;
     PROVIDERS.forEach((p) => {
@@ -57,7 +54,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
     try {
       await onRefresh(pid);
     } catch {
-      /* provider offline — the row shows a "load models" retry */
+      /* provider offline — the row shows a retry button */
     } finally {
       setBusy((s) => {
         const n = new Set(s);
@@ -69,7 +66,6 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
 
   return (
     <div ref={ref} className="relative min-w-0">
-      {/* trigger */}
       <button
         onClick={() => setOpen((v) => !v)}
         className="row-hl flex max-w-[min(300px,44vw)] items-center gap-2 rounded-xl px-2.5 py-2 text-[14px] font-extrabold text-text transition-all"
@@ -84,166 +80,158 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
         )}
         <span className="truncate">{auto ? (modelId === "auto-free" ? t("picker.autoFree") : t("picker.autoLocal")) : resolved.name}</span>
         {auto && (
-          <span className="hidden truncate font-mono text-[11px] font-medium text-faint sm:inline">
-            → {resolved.name}
-          </span>
+          <span className="hidden truncate font-mono text-[11px] font-medium text-faint sm:inline">→ {resolved.name}</span>
         )}
         <ChevronDown className={`h-4 w-4 shrink-0 text-faint transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
         <>
-        {/* mobile backdrop */}
-        <div className="backdrop-in fixed inset-0 z-40 bg-ink/60 md:hidden" onClick={() => setOpen(false)} />
-        <div className="md-picker-pop sheet-in fixed inset-x-2 bottom-2 z-50 flex max-h-[70vh] flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.85)] md:absolute md:inset-auto md:left-0 md:top-full md:mt-2 md:w-[420px] md:max-w-[92vw] md:rounded-2xl">
-          <div className="flex items-center justify-between border-b border-line/70 px-4 py-2.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">{t("picker.title")}</span>
-            <button
-              onClick={() => {
-                PROVIDERS.forEach((p) => {
-                  const reachable = p.keyless || p.local || !!cfgs[p.id]?.key?.trim();
-                  if (reachable) void refresh(p.id);
-                });
-              }}
-              className="flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-dim transition-all hover:border-violet/50 hover:text-violet3"
-              title={t("picker.refetch")}
-            >
-              <RefreshIcon className="h-3 w-3" />
-              {t("picker.refreshAll")}
-            </button>
-          </div>
-
-          <div className="max-h-[380px] overflow-y-auto py-1.5">
-            {/* smart routing */}
-            <div className="border-b border-line/70 pb-1.5">
-              <p className="flex items-center gap-2 px-4 pb-1 pt-2.5 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
-                <BoltIcon className="h-3 w-3 text-violet3" />
-                {t("picker.routing")}
-              </p>
-              <AutoRow
-                id="auto-free"
-                label={t("picker.autoFree")}
-                icon={<GiftIcon className="h-3.5 w-3.5" />}
-                desc={t("picker.autoFreeDesc")}
-                tint="text-gold"
-                border="border-gold/45"
-                bg="bg-gold/10"
-                active={modelId === "auto-free"}
-                resolvedName={resolveAutoModel("auto-free", cfgs, catalog).name}
-                onPick={(id) => {
-                  onChange(id);
-                  setOpen(false);
-                }}
-              />
-              <AutoRow
-                id="auto-local"
-                label={t("picker.autoLocal")}
-                icon={<ServerIcon className="h-3.5 w-3.5" />}
-                desc={t("picker.autoLocalDesc")}
-                tint="text-cyanic"
-                border="border-cyanic/45"
-                bg="bg-cyanic/10"
-                active={modelId === "auto-local"}
-                resolvedName={resolveAutoModel("auto-local", cfgs, catalog).name}
-                onPick={(id) => {
-                  onChange(id);
-                  setOpen(false);
-                }}
-              />
+          <div className="backdrop-in fixed inset-0 z-40 bg-ink/60 md:hidden" onClick={() => setOpen(false)} />
+          <div className="md-picker-pop sheet-in fixed inset-x-2 bottom-2 z-50 flex max-h-[70vh] flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-[0_24px_70px_-12px_rgba(0,0,0,0.85)] md:absolute md:inset-auto md:left-0 md:top-full md:mt-2 md:w-[420px] md:max-w-[92vw] md:rounded-2xl">
+            <div className="flex items-center justify-between border-b border-line/70 px-4 py-2.5">
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">{t("picker.title")}</span>
+              <button
+                onClick={onRefreshAll}
+                className="flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-dim transition-all hover:border-violet/50 hover:text-violet3"
+                title={t("picker.refetch")}
+              >
+                <RefreshIcon className="h-3 w-3" />
+                {t("picker.refreshAll")}
+              </button>
             </div>
 
-            {/* per-provider live models */}
-            {PROVIDERS.map((p) => {
-              const cfg = cfgs[p.id];
-              const hasKey = !!cfg?.key?.trim();
-              const reachable = p.keyless || p.local || hasKey;
-              const models = live[p.id] ?? [];
-              const isLoading = busy.has(p.id);
+            <div className="max-h-[380px] overflow-y-auto py-1.5">
+              {/* smart routing */}
+              <div className="border-b border-line/70 pb-1.5">
+                <p className="flex items-center gap-2 px-4 pb-1 pt-2.5 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
+                  <BoltIcon className="h-3 w-3 text-violet3" />
+                  {t("picker.routing")}
+                </p>
+                <AutoRow
+                  id="auto-free"
+                  label={t("picker.autoFree")}
+                  icon={<GiftIcon className="h-3.5 w-3.5" />}
+                  desc={t("picker.autoFreeDesc")}
+                  tint="text-gold"
+                  border="border-gold/45"
+                  bg="bg-gold/10"
+                  active={modelId === "auto-free"}
+                  resolvedName={resolveAutoModel("auto-free", cfgs, live).name}
+                  onPick={(id) => {
+                    onChange(id);
+                    setOpen(false);
+                  }}
+                />
+                <AutoRow
+                  id="auto-local"
+                  label={t("picker.autoLocal")}
+                  icon={<ServerIcon className="h-3.5 w-3.5" />}
+                  desc={t("picker.autoLocalDesc")}
+                  tint="text-cyanic"
+                  border="border-cyanic/45"
+                  bg="bg-cyanic/10"
+                  active={modelId === "auto-local"}
+                  resolvedName={resolveAutoModel("auto-local", cfgs, live).name}
+                  onPick={(id) => {
+                    onChange(id);
+                    setOpen(false);
+                  }}
+                />
+              </div>
 
-              return (
-                <div key={p.id}>
-                  <div className="flex items-center gap-2 px-4 pb-1 pt-3">
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.accent }} />
-                    <span className="text-[12px] font-extrabold text-text">{p.name}</span>
-                    {isLoading ? (
-                      <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] text-faint">
-                        <span className="h-2.5 w-2.5 animate-spin rounded-full border border-line2 border-t-violet3" />
-                        {t("picker.fetching")}
-                      </span>
-                    ) : models.length > 0 ? (
-                      <span className="ml-auto flex items-center gap-2">
-                        <span className="rounded bg-panel2 px-1.5 py-0.5 font-mono text-[9.5px] text-mint">
-                          {models.length} {t("picker.live")}
+              {/* per-provider live models */}
+              {PROVIDERS.map((p) => {
+                const cfg = cfgs[p.id];
+                const hasKey = !!cfg?.key?.trim();
+                const reachable = p.keyless || p.local || hasKey;
+                const models = live[p.id] ?? [];
+                const isLoading = busy.has(p.id);
+
+                return (
+                  <div key={p.id}>
+                    <div className="flex items-center gap-2 px-4 pb-1 pt-3">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.accent }} />
+                      <span className="text-[12px] font-extrabold text-text">{p.name}</span>
+                      {isLoading ? (
+                        <span className="ms-auto flex items-center gap-1.5 font-mono text-[10px] text-faint">
+                          <span className="h-2.5 w-2.5 animate-spin rounded-full border border-line2 border-t-violet3" />
+                          {t("picker.fetching")}
                         </span>
+                      ) : models.length > 0 ? (
+                        <span className="ms-auto flex items-center gap-2">
+                          <span className="rounded bg-panel2 px-1.5 py-0.5 font-mono text-[9.5px] text-mint">
+                            {models.length} {t("picker.live")}
+                          </span>
+                          <button
+                            onClick={() => void refresh(p.id)}
+                            className="rounded p-1 text-faint transition-colors hover:text-violet3"
+                            title={t("picker.refetch")}
+                          >
+                            <RefreshIcon className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ) : reachable ? (
                         <button
                           onClick={() => void refresh(p.id)}
-                          className="rounded p-1 text-faint transition-colors hover:text-violet3"
-                          title={t("picker.refetch")}
+                          className="ms-auto flex items-center gap-1.5 rounded-lg border border-line px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-dim transition-all hover:border-violet/50 hover:text-violet3"
                         >
-                          <RefreshIcon className="h-3 w-3" />
+                          {t("picker.loadModels")}
                         </button>
-                      </span>
-                    ) : reachable ? (
-                      <button
-                        onClick={() => void refresh(p.id)}
-                        className="ml-auto flex items-center gap-1.5 rounded-lg border border-line px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-dim transition-all hover:border-violet/50 hover:text-violet3"
-                      >
-                        {t("picker.loadModels")}
-                      </button>
-                    ) : (
-                      <span className="ml-auto flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-faint">
-                        <KeyIcon className="h-3 w-3" />
-                        {t("picker.addKey")}
-                      </span>
+                      ) : (
+                        <span className="ms-auto flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-faint">
+                          <KeyIcon className="h-3 w-3" />
+                          {t("picker.addKey")}
+                        </span>
+                      )}
+                    </div>
+
+                    {models.length === 0 && reachable && !isLoading && (
+                      <p className="px-4 pb-1 text-[11px] text-faint">
+                        {p.local ? t("picker.serverDown") : t("picker.nothing")}
+                      </p>
+                    )}
+                    {!reachable && (
+                      <p className="px-4 pb-1 text-[11px] text-faint">
+                        {p.keyless ? t("picker.keyless") : t("picker.needKey")}
+                      </p>
+                    )}
+
+                    {models.slice(0, LIST_CAP).map((apiId) => {
+                      const id = dynId(p.id, apiId);
+                      const active = modelId === id;
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => {
+                            onChange(id);
+                            setOpen(false);
+                          }}
+                          className={`flex w-full items-center gap-3 px-4 py-2 text-start transition-colors ${
+                            active ? "bg-violet/10" : "hover:bg-panel2"
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className={`block truncate font-mono text-[12px] ltr-keep ${active ? "font-bold text-violet3" : "text-text"}`}>
+                              {apiId}
+                            </span>
+                          </span>
+                          <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center ${active ? "text-violet3" : "opacity-0"}`}>
+                            <CheckIcon className="h-3.5 w-3.5" />
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {models.length > LIST_CAP && (
+                      <p className="px-4 py-1 font-mono text-[10px] text-faint">
+                        + {models.length - LIST_CAP} {t("picker.more")}
+                      </p>
                     )}
                   </div>
-
-                  {models.length === 0 && reachable && !isLoading && (
-                    <p className="px-4 pb-1 text-[11px] text-faint">
-                      {p.local ? t("picker.serverDown") : t("picker.nothing")}
-                    </p>
-                  )}
-                  {!reachable && (
-                    <p className="px-4 pb-1 text-[11px] text-faint">
-                      {p.keyless ? t("picker.keyless") : t("picker.needKey")}
-                    </p>
-                  )}
-
-                  {models.slice(0, LIST_CAP).map((apiId) => {
-                    const id = dynId(p.id, apiId);
-                    const active = modelId === id;
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => {
-                          onChange(id);
-                          setOpen(false);
-                        }}
-                        className={`flex w-full items-center gap-3 px-4 py-2 text-left transition-colors ${
-                          active ? "bg-violet/10" : "hover:bg-panel2"
-                        }`}
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className={`block truncate font-mono text-[12px] ${active ? "font-bold text-violet3" : "text-text"}`}>
-                            {apiId}
-                          </span>
-                        </span>
-                        <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center ${active ? "text-violet3" : "opacity-0"}`}>
-                          <CheckIcon className="h-3.5 w-3.5" />
-                        </span>
-                      </button>
-                    );
-                  })}
-                  {models.length > LIST_CAP && (
-                    <p className="px-4 py-1 font-mono text-[10px] text-faint">
-                      + {models.length - LIST_CAP} {t("picker.more")}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
         </>
       )}
     </div>
@@ -275,7 +263,7 @@ function AutoRow({
   return (
     <button
       onClick={() => onPick(id)}
-      className={`flex w-full items-center gap-3 px-4 py-2 text-left transition-colors ${active ? bg : "hover:bg-panel2"}`}
+      className={`flex w-full items-center gap-3 px-4 py-2 text-start transition-colors ${active ? bg : "hover:bg-panel2"}`}
     >
       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${border} ${tint}`}>
         {icon}

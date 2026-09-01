@@ -33,7 +33,14 @@ export const BrandMark = ({ className = "w-8 h-8" }: IP) => (
   </svg>
 );
 
-/** 中文专属印章 — a cinnabar chop stamp, shown only in the zh variant. */
+export const Wordmark = ({ className = "" }: IP) => (
+  <span className={`font-sans font-extrabold tracking-tight text-text ${className}`}>
+    Ai<span className="text-violet2">De</span>
+    <span className="wm-cursor">_</span>
+  </span>
+);
+
+/** 🇨🇳 中文专属印章 — a cinnabar chop stamp, zh variant only. */
 export const Seal = ({ ch = "智", className = "h-9 w-9" }: { ch?: string; className?: string }) => (
   <span
     aria-hidden
@@ -50,69 +57,28 @@ export const Seal = ({ ch = "智", className = "h-9 w-9" }: { ch?: string; class
   </span>
 );
 
-export const Wordmark = ({ className = "" }: IP) => (
-  <span className={`font-sans font-extrabold tracking-tight text-text ${className}`}>
-    Ai<span className="text-violet2">De</span>
-    <span className="wm-cursor">_</span>
+/** 🇺🇦 stylized tryzub — uk variant only. */
+export const Tryzub = ({ className = "h-9 w-9" }: { className?: string }) => (
+  <span
+    aria-hidden
+    className={`inline-flex select-none items-center justify-center rounded-[6px] border-2 ${className}`}
+    style={{
+      borderColor: "var(--t-violet)",
+      background: "color-mix(in srgb, var(--t-violet) 14%, transparent)",
+      transform: "rotate(-4deg)",
+      boxShadow: "0 2px 10px color-mix(in srgb, var(--t-violet) 32%, transparent)",
+    }}
+  >
+    <svg viewBox="0 0 24 24" className="h-[64%] w-[64%]" fill="none" stroke="var(--t-gold)" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 4.6v6.9a7 7 0 0 0 14 0V4.6" />
+      <path d="M12 2.4v12.8" />
+      <path d="M12 2.4l-2.1 3 2.1 3 2.1-3z" fill="var(--t-gold)" strokeWidth="1.1" />
+      <path d="M12 17.4v3.8" />
+    </svg>
   </span>
 );
 
 /* ---------- ui ---------- */
-
-export const BoltIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M13 2.5L4.5 13.5H11l-1 8 8.5-11H12z" />
-  </S>
-);
-
-export const SpeakerIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" />
-    <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" />
-  </S>
-);
-
-export const SpeakerOffIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" />
-    <path d="M16 9.5l5 5M21 9.5l-5 5" />
-  </S>
-);
-
-export const MenuIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M4 6.5h16M4 12h16M4 17.5h16" />
-  </S>
-);
-
-export const PanelLeftIcon = (p: IP) => (
-  <S {...p}>
-    <rect x="3" y="4" width="18" height="16" rx="2.5" />
-    <path d="M9.5 4v16" />
-  </S>
-);
-
-export const SidebarIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M4 6.5h16M4 12h16M4 17.5h10" />
-  </S>
-);
-
-export const ServerIcon = (p: IP) => (
-  <S {...p}>
-    <rect x="4" y="4" width="16" height="7" rx="1.5" />
-    <rect x="4" y="13" width="16" height="7" rx="1.5" />
-    <path d="M7.5 7.5h.01M7.5 16.5h.01" strokeWidth={2.4} />
-    <path d="M13 7.5h3.5M13 16.5h3.5" />
-  </S>
-);
-
-export const GiftIcon = (p: IP) => (
-  <S {...p}>
-    <rect x="3.5" y="8" width="17" height="4" rx="1" />
-    <path d="M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7M12 8v12.5M12 8s-1.2-4.5-4-4.5A2.2 2.2 0 0 0 8 8zM12 8s1.2-4.5 4-4.5A2.2 2.2 0 0 1 16 8z" />
-  </S>
-);
 
 export const SendIcon = (p: IP) => (
   <S {...p}>
@@ -166,19 +132,6 @@ export const GearIcon = (p: IP) => (
   </S>
 );
 
-export const PaperclipIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M20 11.5l-7.8 7.8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L10 17a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4" />
-  </S>
-);
-
-export const ChatIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M21 12a8 8 0 0 1-8 8H4l2.3-2.9A8 8 0 1 1 21 12z" />
-    <path d="M8.5 10.5h7M8.5 13.5h4.5" />
-  </S>
-);
-
 export const CodeIcon = (p: IP) => (
   <S {...p}>
     <path d="M8 6.5L2.5 12 8 17.5M16 6.5l5.5 5.5L16 17.5" />
@@ -203,26 +156,6 @@ export const RefreshIcon = (p: IP) => (
   <S {...p}>
     <path d="M20 11a8 8 0 0 0-14.9-3M4 13a8 8 0 0 0 14.9 3" />
     <path d="M4.5 4v4h4M19.5 20v-4h-4" />
-  </S>
-);
-
-export const SunIcon = (p: IP) => (
-  <S {...p}>
-    <circle cx="12" cy="12" r="4" />
-    <path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4" />
-  </S>
-);
-
-export const MoonIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" />
-  </S>
-);
-
-export const MonitorIcon = (p: IP) => (
-  <S {...p}>
-    <rect x="3" y="4.5" width="18" height="12.5" rx="2" />
-    <path d="M9 21h6M12 17v4" />
   </S>
 );
 
@@ -271,14 +204,6 @@ export const BulbIcon = (p: IP) => (
   </S>
 );
 
-export const DotsIcon = (p: IP) => (
-  <S {...p}>
-    <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
-    <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
-    <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
-  </S>
-);
-
 export const PenIcon = (p: IP) => (
   <S {...p}>
     <path d="M4 20l.8-3.2L15.6 6a2 2 0 0 1 2.8 0l-.4-.4a2 2 0 0 1 0 2.8L7.2 19.2z" />
@@ -299,15 +224,6 @@ export const PlayIcon = (p: IP) => (
   </S>
 );
 
-export const ListIcon = (p: IP) => (
-  <S {...p}>
-    <path d="M8.5 6h12M8.5 12h12M8.5 18h12" />
-    <circle cx="4" cy="6" r="0.8" fill="currentColor" />
-    <circle cx="4" cy="12" r="0.8" fill="currentColor" />
-    <circle cx="4" cy="18" r="0.8" fill="currentColor" />
-  </S>
-);
-
 export const KeyIcon = (p: IP) => (
   <S {...p}>
     <circle cx="8" cy="14" r="4.5" />
@@ -321,35 +237,115 @@ export const OpenIcon = (p: IP) => (
   </S>
 );
 
+export const ChatIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M21 12a8 8 0 0 1-8 8H4l2.3-2.9A8 8 0 1 1 21 12z" />
+    <path d="M8.5 10.5h7M8.5 13.5h4.5" />
+  </S>
+);
+
+export const PanelLeftIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+    <path d="M9.5 4.5v15" />
+  </S>
+);
+
+export const DotsIcon = (p: IP) => (
+  <S {...p}>
+    <circle cx="5.5" cy="12" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="18.5" cy="12" r="1.1" fill="currentColor" stroke="none" />
+  </S>
+);
+
+export const MicIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3" />
+  </S>
+);
+
+export const SpeakerIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M4 9.5v5h3.5L12 19V5L7.5 9.5z" />
+    <path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" />
+  </S>
+);
+
 export const SwapIcon = (p: IP) => (
   <S {...p}>
-    <path d="M7 4L3.5 7.5 7 11M3.5 7.5H17M17 13l3.5 3.5L17 20M20.5 16.5H7" />
+    <path d="M4 8h13M14 4.5L17.5 8 14 11.5M20 16H7M10 12.5L6.5 16l3.5 3.5" />
   </S>
 );
 
 export const DownloadIcon = (p: IP) => (
   <S {...p}>
-    <path d="M12 3v11M8 10.5l4 4 4-4M4.5 17.5v1A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5v-1" />
+    <path d="M12 4v11M7.5 11L12 15.5 16.5 11M4.5 19.5h15" />
   </S>
 );
 
 export const FileTextIcon = (p: IP) => (
   <S {...p}>
     <path d="M6 3.5h8L19 8.5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z" />
-    <path d="M13.5 3.5v5.5H19M8.5 13h7M8.5 16h5" />
-  </S>
-);
-
-export const MicIcon = (p: IP) => (
-  <S {...p}>
-    <rect x="9.5" y="3.5" width="5" height="10" rx="2.5" />
-    <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" />
+    <path d="M13.5 3.5v5.5H19M8.5 12.5h7M8.5 15.5h5" />
   </S>
 );
 
 export const TranslateIcon = (p: IP) => (
   <S {...p}>
-    <path d="M3.5 6h9M8 4v2M11 6c-.8 3.2-3 6-6.5 7.5M5.5 9.5C7 12 9.5 13.7 12 14.3" />
-    <path d="M13 20l4-9 4 9M14.2 17.2h5.6" />
+    <path d="M3.5 6h9M8 4v2M10.5 6c-1 3.2-3.4 5.7-6.5 7M5.5 8.5c1.3 2.6 3.7 4.4 6.5 5" />
+    <path d="M13 20l4-9.5L21 20M14.3 17h5.4" />
+  </S>
+);
+
+export const ListIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M8.5 6h12M8.5 12h12M8.5 18h12" />
+    <circle cx="4.5" cy="6" r="1" fill="currentColor" stroke="none" />
+    <circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none" />
+    <circle cx="4.5" cy="18" r="1" fill="currentColor" stroke="none" />
+  </S>
+);
+
+export const BoltIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M13 2.5L4.5 13.5H11l-1 8 8.5-11H12z" />
+  </S>
+);
+
+export const GiftIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="3.5" y="8" width="17" height="4" rx="1" />
+    <path d="M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7M12 8v12.5M12 8s-1.2-4.5-4-4.5A2.2 2.2 0 0 0 8 8zM12 8s1.2-4.5 4-4.5A2.2 2.2 0 0 1 16 8z" />
+  </S>
+);
+
+export const ServerIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="4" y="4" width="16" height="7" rx="1.5" />
+    <rect x="4" y="13" width="16" height="7" rx="1.5" />
+    <path d="M7.5 7.5h.01M7.5 16.5h.01" strokeWidth={2.4} />
+    <path d="M13 7.5h3.5M13 16.5h3.5" />
+  </S>
+);
+
+export const SunIcon = (p: IP) => (
+  <S {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19" />
+  </S>
+);
+
+export const MoonIcon = (p: IP) => (
+  <S {...p}>
+    <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" />
+  </S>
+);
+
+export const MonitorIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="3" y="4.5" width="18" height="12.5" rx="2" />
+    <path d="M9 20.5h6M12 17v3.5" />
   </S>
 );

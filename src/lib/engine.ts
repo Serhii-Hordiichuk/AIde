@@ -1,113 +1,112 @@
-import { streamChat } from "./llm";
-import { getModelInfo } from "../data/models";
-import { providerById } from "../data/providers";
-import type { ProviderCfg, ProjectFile } from "./store";
 import { pickTemplate, deriveName } from "./templates";
+import { streamChat } from "./llm";
+import { DEFAULT_PARAMS, type ProjectFile, type ProviderCfg } from "./store";
+import { syntheticModel } from "../data/models";
+import { providerById } from "../data/providers";
 
-/* ================= Coder: project generation ================= */
-
-export interface ScaffoldResult {
-  templateId: string;
-  name: string;
-  files: ProjectFile[];
+/** Deterministic offline generator — used when no free API is reachable. */
+export function scaffoldProject(prompt: string): { name: string; templateId: string; files: ProjectFile[] } {
+  const tpl = pickTemplate(prompt);
+  const name = deriveName(prompt, tpl.id);
+  const record = tpl.build(name, prompt);
+  const order = ["index.html", "styles.css", "app.js", "README.md"];
+  const files: ProjectFile[] = [];
+  for (const k of order) {
+    if (record[k]) files.push({ name: k, content: record[k] });
+  }
+  for (const [k, v] of Object.entries(record)) {
+    if (!order.includes(k)) files.push({ name: k, content: v });
+  }
+  return { name, templateId: tpl.id, files };
 }
 
-/** Built-in generator — the offline safety net, produces real working files. */
-export function scaffoldProject(desc: string): ScaffoldResult {
-  const tpl = pickTemplate(desc);
-  const name = deriveName(desc, tpl.id);
-  const rec = tpl.build(name, desc);
-  return {
-    templateId: tpl.id,
-    name,
-    files: Object.entries(rec).map(([n, content]) => ({ name: n, content })),
-  };
-}
-
-const LLM_PROMPT = (desc: string) =>
-  `You are a senior product designer + frontend engineer. Build ONE self-contained web app (single HTML file, <style> and <script> inside) for the brief below.
-
-Hard requirements:
-- The design must be UNIQUE to this brief: derive the app name, color palette, typography and copy from the topic. Never reuse a generic template look.
-- UI in English. Realistic, on-topic content (no lorem ipsum).
-- Everything must work immediately when the file is opened: interactivity via vanilla JS, state where it makes sense (localStorage OK).
-- Responsive, accessible, polished micro-interactions (hover, transitions).
-- Return ONLY one \`\`\`html code block, no text before or after.
-
-Brief: ${desc}`;
-
-/** Try to generate the project with a real (free) model. Returns null on failure. */
+/** Asks a live free model to generate the whole project as JSON. Returns null on failure. */
 export async function generateProjectWithLLM(
-  desc: string,
+  prompt: string,
   providerId: string,
   cfg: ProviderCfg | undefined,
-  modelId: string,
-  onLine: (line: string) => void,
-  signal: AbortSignal
+  modelApiId: string,
+  log: (line: string) => void,
+  signal?: AbortSignal
 ): Promise<ProjectFile[] | null> {
   const provider = providerById.get(providerId);
-  const model = getModelInfo(modelId);
-  if (!provider) return null;
-  if (!provider.keyless && !provider.local && !cfg?.key?.trim()) {
-    onLine(`⚠ ${provider.name} needs a key — falling back to the built-in generator`);
-    return null;
-  }
+  if (!provider || !cfg) return null;
+  const keyOk = provider.keyless || provider.local || !!cfg.key?.trim();
+  if (!keyOk) return null;
+
+  const model = syntheticModel(providerId, modelApiId || "default");
+  log(`[FE] generating with ${provider.name} · ${model.apiId}…`);
+
+  const sys =
+    "You are a senior web engineer. Create a small, complete, dependency-free web project (plain HTML/CSS/JS only, no frameworks, no CDN links) for the user's brief. " +
+    'Reply ONLY with valid JSON in exactly this shape: {"files":[{"name":"index.html","content":"..."},{"name":"styles.css","content":"..."},{"name":"app.js","content":"..."},{"name":"README.md","content":"..."}]}. ' +
+    "Files must be self-contained and work when opened in a browser. Keep each file under 250 lines.";
+
+  let raw = "";
   try {
-    onLine(`[FS] connected: ${provider.name} · ${model.name} (free)`);
-    onLine("[FS] sending generation request…");
-    let full = "";
-    for await (const delta of streamChat({
+    for await (const d of streamChat({
       model,
       provider,
-      cfg: cfg ?? { key: "", baseUrl: provider.baseUrl },
-      messages: [{ role: "user", content: LLM_PROMPT(desc) }],
-      params: { temperature: 0.4, topP: 0.95, maxTokens: 12000, system: "" },
+      cfg,
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: "Brief: " + prompt },
+      ],
+      params: { ...DEFAULT_PARAMS, temperature: 0.4, maxTokens: 8192 },
       signal,
     })) {
-      full += delta;
+      raw += d;
     }
-    const html = extractHtmlBlock(full);
-    if (!html) throw new Error("the model did not return a ```html block");
-    onLine(`[FS] ✓ received ${(html.length / 1024).toFixed(1)} KB of code from ${model.name}`);
-    return [
-      { name: "index.html", content: html },
-      {
-        name: "README.md",
-        content: `# App generated by ${model.name}\n\nBrief: ${desc}\n\nRun: open index.html in a browser.`,
-      },
-    ];
   } catch (e) {
-    if (signal.aborted) throw e;
-    const msg = e instanceof Error ? e.message : String(e);
-    onLine(`⚠ LLM generation failed (${msg.slice(0, 90)})`);
-    onLine("[ARCH] switching to the built-in generator…");
+    log("[FE] ⚠ generation failed: " + (e instanceof Error ? e.message : String(e)).slice(0, 120));
+    return null;
+  }
+
+  const clean = raw.replace(/```(?:json)?/gi, "").trim();
+  const start = clean.indexOf("{");
+  const end = clean.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    const j = JSON.parse(clean.slice(start, end + 1));
+    const files: ProjectFile[] = (j.files ?? [])
+      .filter((f: any) => typeof f?.name === "string" && typeof f?.content === "string")
+      .slice(0, 8)
+      .map((f: any) => ({ name: f.name.replace(/[^\w.\-/]/g, "").slice(0, 64) || "file.txt", content: f.content }));
+    if (!files.some((f) => f.name.endsWith(".html"))) {
+      // wrap the payload so the preview still works
+      files.unshift({
+        name: "index.html",
+        content: `<!doctype html><html><head><meta charset="utf-8"><title>Generated app</title><link rel="stylesheet" href="styles.css"></head><body><pre>${(files[0]?.content ?? "")
+          .replace(/</g, "&lt;")
+          .slice(0, 4000)}</pre></body></html>`,
+      });
+    }
+    if (!files.some((f) => f.name === "README.md")) {
+      files.push({ name: "README.md", content: `# Generated project\n\nBrief: ${prompt}\n\nGenerated by a live free model via ${provider.name}.` });
+    }
+    return files;
+  } catch {
     return null;
   }
 }
 
-export function extractHtmlBlock(text: string): string | null {
-  const m = /```html\s*\n([\s\S]*?)```/i.exec(text) ?? /```\s*\n(<!doctype[\s\S]*?)```/i.exec(text);
-  return m ? m[1].trim() : null;
-}
-
-/** Assembles index.html with inlined css/js for the preview iframe. */
+/** Inlines css/js into a single HTML document for the sandboxed preview iframe. */
 export function buildPreviewDoc(files: ProjectFile[]): string {
-  const get = (n: string) => files.find((f) => f.name === n)?.content ?? "";
-  let html = get("index.html") || files[0]?.content || "";
-  const css = get("styles.css");
-  const js = get("app.js");
-  if (css) html = html.replace(/<link[^>]*styles\.css[^>]*>/i, `<style>\n${css}\n</style>`);
-  if (js) html = html.replace(/<script[^>]*app\.js[^>]*><\/script>/i, `<script>\n${js}\n</script>`);
-  return html;
+  const html = files.find((f) => f.name.endsWith(".html"));
+  if (!html) {
+    const body = files.map((f) => `--- ${f.name} ---\n${f.content}`).join("\n\n");
+    return `<!doctype html><html><head><meta charset="utf-8"></head><body><pre>${body.replace(/</g, "&lt;")}</pre></body></html>`;
+  }
+  const css = files.filter((f) => f.name.endsWith(".css")).map((f) => f.content).join("\n");
+  const js = files.filter((f) => f.name.endsWith(".js")).map((f) => f.content).join("\n;\n");
+  let doc = html.content;
+  doc = doc.replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
+  doc = doc.replace(/<script[^>]*src=["'][^"']*["'][^>]*>\s*<\/script>/gi, "");
+  const headIn = `<style>\n${css}\n</style>`;
+  const bodyIn = `\n<script>\ntry {\n${js}\n} catch (e) { console.error(e); }\n</script>`;
+  if (/<\/head>/i.test(doc)) doc = doc.replace(/<\/head>/i, headIn + "\n</head>");
+  else doc = headIn + doc;
+  if (/<\/body>/i.test(doc)) doc = doc.replace(/<\/body>/i, bodyIn + "\n</body>");
+  else doc += bodyIn;
+  return doc;
 }
-
-/* ================= prompts ================= */
-
-export const CODER_SUGGESTIONS = [
-  "To-Do app with localStorage persistence",
-  'Landing page for a coffee shop "Grain"',
-  "Analytics dashboard with a sales chart",
-  "Snake game on canvas",
-  "Pomodoro timer with a progress ring",
-  "Markdown notepad with autosave",
-];

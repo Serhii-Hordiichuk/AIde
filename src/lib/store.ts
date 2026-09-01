@@ -4,8 +4,8 @@ export interface ChatMessage {
   content: string;
   modelId?: string;
   error?: boolean;
-  ts: number;
   tokens?: number;
+  ts: number;
 }
 
 export interface Conversation {
@@ -71,5 +71,5 @@ export function save(k: string, v: unknown) {
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 export function newConversation(): Conversation {
-  return { id: uid(), title: "New chat", messages: [], createdAt: Date.now() };
+  return { id: uid(), title: "", messages: [], createdAt: Date.now() };
 }

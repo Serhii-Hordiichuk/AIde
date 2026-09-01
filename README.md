@@ -1,135 +1,40 @@
-<h1 align="center">
-  <code>&gt;_</code> AiDe <em>— AI-native studio &amp; coder</em>
-</h1>
+<h1 align="center"><code>&gt;_</code> AiDe — AI-native studio &amp; coder</h1>
 
 <p align="center">
-  Chat with free LLM providers · scaffold working web apps from a single sentence<br/>
+  Chat with free LLM providers · build working web apps from a sentence · interpret live conversations<br/>
   <b>Zero paid models. Zero tracking. Keys never leave your browser.</b>
 </p>
 
-<p align="center">
-  <a href="#deploy-to-github-pages">Deploy guide</a> ·
-  <a href="#quick-start">Quick start</a> ·
-  <a href="#free-providers">Providers</a> ·
-  <a href="#architecture">Architecture</a>
-</p>
-
----
-
 ## What's inside
 
-**💬 Chat** — a streaming playground that talks to any free provider:
-
-- Token-by-token streaming, stop / regenerate, copy, markdown with code blocks
-- `Auto Free` routing — picks the best free model for your setup (keyless → free tiers → local)
-- `Auto Local` routing — routes straight to your local runtimes (Ollama, LM Studio, vLLM, llama.cpp, KoboldCPP)
-- Think / Web search / Deep Research modes wired into the system prompt
-- Every request goes to a real API — there is no canned demo mode
-
-**🛠 Coder** — builds projects from scratch with a **specialist crew**:
-
-1. The **Architect** decomposes your brief into subtasks by specialty
-2. **UI Designer** shapes the markup & styles, **Frontend Engineer** writes the logic, **Technical Writer** documents, **QA** builds and smoke-tests
-3. You watch the task board, colored terminal log and file tree update live — then get a **working preview** in an iframe
-4. Follow-up tweaks ("make the accent green", "rename it to …") rebuild instantly
-5. If a free API is reachable (Pollinations is keyless!), the crew generates with the real model; otherwise the built-in generator ships a fully working app offline
-
-## Free providers
-
-| Provider | Access | Notes |
-|---|---|---|
-| **Pollinations** | 🟢 keyless, ready out of the box | SSE streaming, OpenAI-compatible |
-| Google AI Studio | free key | Gemini Flash-Lite, 1M context |
-| Groq / Cerebras / SambaNova | free keys | 500–1000+ tok/s inference |
-| Cloudflare AI Gateway | free key | OpenAI-compatible router |
-| Hugging Face | free token | Inference router |
-| GitHub Models | free token | `gh` CLI login, rate-limited |
-| OpenRouter | free key | `:free` model variants |
-| Ollama · LM Studio · vLLM · llama.cpp · LocalAI · KoboldCPP | local, no key | configurable base URLs |
+- **💬 Chat** — streaming playground over 23 free providers (Pollinations keyless, Google, Qwen Cloud, Groq, Cerebras, SambaNova, NVIDIA NIM, SiliconFlow, OpenRouter, local Ollama / LM Studio / vLLM / llama.cpp…). `Auto Free` and `Auto Local` routing, Think / Web Search / Deep Research modes, voice read-aloud.
+- **🛠 Coder** — describe an app in one sentence: the Architect decomposes it by specialty (UI Designer, Frontend Engineer, Technical Writer, QA), the crew writes real files, QA builds a live preview. With a free API reachable the code comes from a live model; offline a built-in generator ships working apps.
+- **🌍 Translate** — instant text translation with auto-detect, a push-to-talk **live interpreter** for two people on one device (60+ languages & dialects), and chunked document translation.
+- **🔐 DID login** — self-sovereign identity (`did:key`, ECDSA P-256) generated on-device. No email, no servers, backup-file restore.
+- **🎨 Adaptive UI** — dark/light/auto themes, 4 languages (EN / UK / 中文 / العربية with full RTL), Ukrainian state-color theme + tryzub, Chinese "国潮" cinnabar-gold theme + seal stamp.
+- **Live model catalog** — models are fetched from each provider's own `/models` API; no stale lists.
 
 ## Quick start
 
 ```bash
-git clone https://github.com/Serhii-Hordiichuk/AIde.git
-cd AIde
 npm install
-npm run dev        # http://localhost:5173
-```
-
-Production build:
-
-```bash
-npm run build      # outputs dist/
-npm run preview    # serve the build locally
+npm run dev      # local dev server
+npm run build    # production build → dist/
 ```
 
 ## Deploy to GitHub Pages
 
-### Option A — GitHub Actions (recommended, zero config)
+The repo ships with `.github/workflows/deploy.yml` (Node 22, `vite build --base=./`).
 
-1. Create a repository (e.g. `AIde`) and push this project:
-
-   ```bash
-   git init
-   git add .
-   git commit -m "aide studio"
-   git branch -M main
-   git remote add origin https://github.com/YOUR-USERNAME/AIde.git
-   git push -u origin main
-   ```
-
-2. That's it. The bundled workflow (`.github/workflows/deploy.yml`) **enables GitHub
-   Pages automatically** via the API on the first run (`build_type: workflow`), builds
-   with a relative base (`npx vite build --base=./`) and publishes `dist/`. Your site
-   goes live at `https://YOUR-USERNAME.github.io/AIde/` on every push.
-
-   > If the auto-enable step fails (restricted org policy), enable it once manually:
-   > **Settings → Pages → Build and deployment → Source → GitHub Actions**,
-   > then re-run the workflow from the **Actions** tab.
-   >
-   > Also make sure **Settings → Actions → General → Workflow permissions** is set to
-   > **Read and write permissions**.
-
-### Option B — manual `gh-pages` branch
-
-```bash
-npm run build -- --base=./
-npx gh-pages -d dist
-```
-
-Then set **Settings → Pages → Source → Deploy from a branch → gh-pages / root**.
-
-### Custom domain
-
-Add a `CNAME` file with your domain to `public/` (e.g. `echo "studio.example.com" > public/CNAME`)
-and configure the DNS `A`/`CNAME` records per GitHub's docs. The relative base already works
-on any domain.
-
-## Architecture
-
-```
-src/
-├── App.tsx                  collapsible sidebar · mode switch · settings modal
-├── components/
-│   ├── ChatMode.tsx         streaming chat, stop/regen, reasoning/search modes
-│   ├── CoderMode.tsx        task board · file tree · preview iframe · terminal
-│   ├── ModelPicker.tsx      grouped catalog + Auto Free / Auto Local routing
-│   └── Icons.tsx            inline SVG set + brand mark / wordmark
-├── data/
-│   ├── providers.ts         15 free providers (keyless · free tier · local)
-│   └── models.ts            free-only model registry + routing resolvers
-└── lib/
-    ├── llm.ts               OpenAI-compat SSE · Pollinations · Google SSE adapters
-    ├── plan.ts              task decomposition by specialist roles
-    ├── engine.ts            LLM project generation + offline builder
-    └── templates.ts         7 fully working starter apps
-```
+1. Push to `main`.
+2. Ensure one of:
+   - **Settings → Pages → Build and deployment → Source: GitHub Actions**, or
+   - **Settings → Actions → General → Workflow permissions → Read and write** (lets the workflow enable Pages itself).
+3. The site publishes to `https://<user>.github.io/<repo>/`. Custom domain: add a `CNAME` file to `public/`.
 
 ## Privacy
 
-- API keys are stored in `localStorage` only and sent directly to the provider you chose
-- No analytics, no cookies, no third-party scripts
-- Chats, projects and settings persist locally in your browser
+API keys, chats, projects, translations and the DID live in `localStorage` only. Requests go directly from your browser to the provider you chose — AiDe has no backend.
 
 ## License
 

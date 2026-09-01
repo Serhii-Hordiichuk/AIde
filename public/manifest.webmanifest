@@ -1,33 +1,20 @@
 {
   "name": "AiDe — AI Studio & Coder",
   "short_name": "AiDe",
-  "description": "AI-native studio: chat with free model providers, build apps with an agent crew, translate live conversations.",
-  "id": "./",
-  "start_url": "./",
-  "scope": "./",
+  "description": "AI-native studio & coder: free models, app builder, live translator. Self-sovereign DID login.",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#131316",
   "theme_color": "#131316",
-  "categories": ["productivity", "developer tools", "utilities"],
+  "lang": "en",
   "icons": [
     {
-      "src": "./icon.svg",
-      "sizes": "192x192",
+      "src": "icon.svg",
+      "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "./icon.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "./icon.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ]
 }

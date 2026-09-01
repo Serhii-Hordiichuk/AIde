@@ -62,7 +62,7 @@ export async function fetchProviderModels(
         .filter((n) => n.length > 0);
     }
 
-    // OpenAI-compatible: OpenRouter, Groq, Cerebras, SambaNova, HF, Cloudflare, GitHub, local runtimes
+    // OpenAI-compatible: OpenRouter, Groq, Cerebras, SambaNova, HF, Qwen, xAI, Mistral, local runtimes…
     const res = await fetch(`${base(cfg, p)}/models`, {
       headers: authHeaders(p, cfg),
       signal: ctrl.signal,

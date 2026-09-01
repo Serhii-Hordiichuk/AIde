@@ -1,192 +1,139 @@
-import type { ModelInfo } from "../data/models";
 import type { ProviderInfo } from "../data/providers";
-import type { GenParams, ProviderCfg } from "./store";
-
-/* Real API clients. Everything here talks to FREE endpoints:
-   - Pollinations: keyless hosted inference (OpenAI-compatible)
-   - Google AI Studio: free tier, streamGenerateContent SSE
-   - OpenAI-compatible: OpenRouter :free, Groq, Cerebras, SambaNova, HF, local runtimes */
+import type { ModelInfo, Cfg } from "../data/models";
+import type { GenParams } from "./store";
 
 export class NoKeyError extends Error {
-  constructor(name: string) {
-    super(`No API key set for ${name}. Add a free key in Settings.`);
+  constructor(public providerName: string) {
+    super(`No API key set for ${providerName}.`);
   }
 }
 
-export interface ChatMessageParam {
-  role: "system" | "user" | "assistant";
+export interface ChatMessageLike {
+  role: string;
   content: string;
 }
 
-export interface ChatOpts {
+export interface StreamOpts {
   model: ModelInfo;
   provider: ProviderInfo;
-  cfg: ProviderCfg;
-  messages: ChatMessageParam[];
+  cfg: Cfg;
+  messages: ChatMessageLike[];
   params: GenParams;
-  signal: AbortSignal;
+  signal?: AbortSignal;
 }
 
-export async function* streamChat(opts: ChatOpts): AsyncGenerator<string> {
-  const { provider, cfg } = opts;
-  const needsKey = !provider.keyless && !provider.local;
-  if (needsKey && !cfg.key?.trim()) throw new NoKeyError(provider.name);
-
-  if (provider.id === "google") yield* googleStream(opts);
-  else yield* openaiCompatible(opts); // pollinations, openrouter, groq, cerebras, sambanova, hf, local
-}
-
-/* ---------- shared SSE helpers ---------- */
-
-async function* sseDataLines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
-  const reader = body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, idx).trim();
-      buf = buf.slice(idx + 1);
-      if (line.startsWith("data:")) {
-        const data = line.slice(5).trim();
-        if (data && data !== "[DONE]") yield data;
-      }
-    }
-  }
-}
-
-function baseOf(cfg: ProviderCfg, provider: ProviderInfo): string {
+function baseOf(cfg: Cfg, provider: ProviderInfo): string {
   return (cfg.baseUrl?.trim() || provider.baseUrl).replace(/\/+$/, "");
 }
 
-/* ---------- OpenAI-compatible (covers Pollinations keyless) ---------- */
-
-async function* openaiCompatible(opts: ChatOpts): AsyncGenerator<string> {
-  const { model, provider, cfg, messages, params, signal } = opts;
-  const isPplx = provider.id === "pollinations";
-  const url = isPplx ? baseOf(cfg, provider) + "/openai" : baseOf(cfg, provider) + "/chat/completions";
-
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (cfg.key?.trim()) {
-    headers["Authorization"] = `Bearer ${cfg.key.trim()}`;
-    if (provider.id === "huggingface") headers["x-api-key"] = cfg.key.trim();
-  }
-
-  let res: Response;
+async function* readSse(res: Response, extract: (json: any) => string | undefined, signal?: AbortSignal): AsyncGenerator<string> {
+  const reader = res.body!.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
   try {
-    res = await fetch(url, {
-      method: "POST",
-      headers,
-      signal,
-      body: JSON.stringify({
-        model: model.apiId,
-        messages,
-        temperature: params.temperature,
-        top_p: params.topP,
-        max_tokens: params.maxTokens,
-        stream: true,
-      }),
-    });
-  } catch (e) {
-    if (signal.aborted) throw e;
-    throw new Error(
-      provider.local
-        ? `cannot reach ${provider.name} at ${baseOf(cfg, provider)} — is the server running?`
-        : `network error while contacting ${provider.name}`
-    );
-  }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`${provider.name} responded HTTP ${res.status}${text ? `: ${text.slice(0, 140)}` : ""}`);
-  }
-
-  const ct = res.headers.get("content-type") ?? "";
-
-  if (ct.includes("text/event-stream") && res.body) {
-    for await (const data of sseDataLines(res.body)) {
-      try {
-        const json = JSON.parse(data);
-        const delta: string = json.choices?.[0]?.delta?.content ?? "";
-        if (delta) yield delta;
-      } catch {
-        /* keep-alive line */
+    for (;;) {
+      if (signal?.aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        const l = line.trim();
+        if (!l.startsWith("data:")) continue;
+        const payload = l.slice(5).trim();
+        if (payload === "[DONE]") return;
+        try {
+          const json = JSON.parse(payload);
+          const delta = extract(json);
+          if (delta) yield delta;
+        } catch {
+          /* skip malformed frame */
+        }
       }
     }
-    return;
-  }
-
-  // Non-streaming fallback (some endpoints ignore stream:true)
-  const data = await res.json().catch(() => null);
-  const content: string =
-    data?.choices?.[0]?.message?.content ??
-    data?.choices?.[0]?.text ??
-    (typeof data === "string" ? data : "");
-  if (!content) throw new Error(`${provider.name} returned an empty response`);
-  // deliver in slices so the UI still feels live
-  for (let i = 0; i < content.length; i += 24) {
-    yield content.slice(i, i + 24);
-    await new Promise((r) => setTimeout(r, 12));
+  } finally {
+    reader.releaseLock();
   }
 }
 
-/* ---------- Google AI Studio (free tier) ---------- */
-
-async function* googleStream(opts: ChatOpts): AsyncGenerator<string> {
+/** Streams assistant tokens from any configured provider. No demo mode — real APIs only. */
+export async function* streamChat(opts: StreamOpts): AsyncGenerator<string> {
   const { model, provider, cfg, messages, params, signal } = opts;
   const key = cfg.key?.trim();
-  if (!key) throw new NoKeyError(provider.name);
 
-  const system = messages.find((m) => m.role === "system")?.content;
-  const contents = messages
-    .filter((m) => m.role !== "system")
-    .map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
-
-  const url =
-    `${baseOf(cfg, provider)}/models/${model.apiId}:streamGenerateContent` +
-    `?alt=sse&key=${encodeURIComponent(key)}`;
-
-  let res: Response;
-  try {
-    res = await fetch(url, {
+  if (provider.id === "google") {
+    if (!key) throw new NoKeyError(provider.name);
+    const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    const contents = messages
+      .filter((m) => m.role !== "system")
+      .map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+    const url = `${baseOf(cfg, provider)}/models/${encodeURIComponent(model.apiId)}:streamGenerateContent?key=${encodeURIComponent(
+      key
+    )}&alt=sse`;
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal,
       body: JSON.stringify({
         contents,
-        ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+        ...(sys ? { systemInstruction: { parts: [{ text: sys }] } } : {}),
         generationConfig: {
           temperature: params.temperature,
           topP: params.topP,
           maxOutputTokens: params.maxTokens,
         },
       }),
+      signal,
     });
-  } catch (e) {
-    if (signal.aborted) throw e;
-    throw new Error(`network error while contacting ${provider.name}`);
+    if (!res.ok) throw new Error(`Google responded HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    yield* readSse(
+      res,
+      (j) => j?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") || undefined,
+      signal
+    );
+    return;
   }
+
+  const isPplx = provider.id === "pollinations";
+  const isCloudflare = provider.id === "cloudflare";
+  const needsAuth = !provider.keyless && !provider.local;
+  if (needsAuth && !key) throw new NoKeyError(provider.name);
+
+  // Cloudflare AI Gateway needs an account-scoped path; keep the base as-is and let the user paste the full gateway URL.
+  const url = isPplx ? baseOf(cfg, provider) + "/openai" : baseOf(cfg, provider) + "/chat/completions";
+  void isCloudflare;
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (key) {
+    headers["Authorization"] = `Bearer ${key}`;
+    if (provider.id === "huggingface") headers["x-api-key"] = key;
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: model.apiId,
+      messages,
+      stream: true,
+      temperature: params.temperature,
+      top_p: params.topP,
+      max_tokens: params.maxTokens,
+    }),
+    signal,
+  });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`${provider.name} responded HTTP ${res.status}${text ? `: ${text.slice(0, 140)}` : ""}`);
+    const body = (await res.text()).slice(0, 300);
+    throw new Error(`${provider.name} responded HTTP ${res.status}: ${body}`);
   }
 
-  if (!res.body) throw new Error(`${provider.name} returned no stream`);
+  yield* readSse(res, (j) => j?.choices?.[0]?.delta?.content ?? undefined, signal);
+}
 
-  for await (const data of sseDataLines(res.body)) {
-    try {
-      const json = JSON.parse(data);
-      const parts = json.candidates?.[0]?.content?.parts ?? [];
-      for (const p of parts) if (p.text) yield p.text;
-    } catch {
-      /* keep-alive line */
-    }
-  }
+/** Collects a full (non-streamed UX) completion into a string. */
+export async function complete(opts: StreamOpts): Promise<string> {
+  let out = "";
+  for await (const d of streamChat(opts)) out += d;
+  return out.trim();
 }

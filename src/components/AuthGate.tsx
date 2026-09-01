@@ -3,7 +3,7 @@ import {
   createIdentity, importIdentity, identityBackup, shortDid,
   type Identity,
 } from "../lib/did";
-import { BrandMark, Wordmark, CheckIcon, CopyIcon, KeyIcon, BoltIcon, Seal } from "./Icons";
+import { BrandMark, Wordmark, CheckIcon, CopyIcon, KeyIcon, BoltIcon, Seal, Tryzub } from "./Icons";
 import { ThemeToggle, LangPicker } from "./Appearance";
 import { useI18n } from "../lib/i18n";
 import type { ThemeMode } from "../lib/theme";
@@ -27,7 +27,7 @@ export default function AuthGate({
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [importText, setImportText] = useState("");
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState<"did" | "key" | null>(null);
+  const [copied, setCopied] = useState<"did" | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   const GEN_STEPS = [t("auth.gen1"), t("auth.gen2"), t("auth.gen3"), t("auth.gen4")];
@@ -57,7 +57,7 @@ export default function AuthGate({
       const id = await importIdentity(importText);
       onReady(id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Import failed.");
+      setError(e instanceof Error ? e.message : t("auth.badImport"));
     }
   }
 
@@ -70,23 +70,21 @@ export default function AuthGate({
     URL.revokeObjectURL(a.href);
   }
 
-  async function copy(text: string, what: "did" | "key") {
+  async function copy(text: string) {
     await navigator.clipboard?.writeText(text).catch(() => {});
-    setCopied(what);
+    setCopied("did");
     setTimeout(() => setCopied(null), 1300);
   }
 
   return (
     <div className="relative flex h-dvh items-center justify-center overflow-y-auto bg-bg px-4">
-      {/* ambient */}
       <div className="ambient" aria-hidden>
         <div className="dots" />
         <div className="tint tint-mint" />
         <div className="tint tint-gold" />
       </div>
 
-      {/* floating appearance controls */}
-      <div className="absolute right-4 top-4 z-20 flex items-center gap-1.5">
+      <div className="absolute end-4 top-4 z-20 flex items-center gap-1.5">
         <LangPicker compact />
         <ThemeToggle mode={theme.mode} setMode={theme.setMode} />
       </div>
@@ -100,6 +98,7 @@ export default function AuthGate({
             ← {t("auth.backToSite")}
           </button>
         )}
+
         {/* brand */}
         <div className="mb-6 flex items-center gap-3">
           <span className="floaty">
@@ -109,6 +108,7 @@ export default function AuthGate({
             <div className="flex items-center gap-2.5">
               <Wordmark className="text-[22px] leading-none" />
               {lang === "zh" && <Seal ch="智" className="h-8 w-8 text-[15px]" />}
+              {lang === "uk" && <Tryzub className="h-8 w-8" />}
             </div>
             <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.22em] text-faint">
               {t("app.tagline")}
@@ -117,22 +117,23 @@ export default function AuthGate({
         </div>
 
         <div className="rounded-2xl border border-line2 bg-panel shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)]">
-          {/* console header */}
           <div className="flex items-center gap-1.5 border-b border-line px-4 py-2.5">
             {["#ff6b6b", "#ffc24b", "#3ecf8e"].map((c) => (
               <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ background: c, opacity: 0.75 }} />
             ))}
-            <span className="ml-2 font-mono text-[11px] text-faint">{t("auth.console")}</span>
-            <span className="ml-auto font-mono text-[9.5px] uppercase tracking-wider text-violet3">did:key · p-256</span>
+            <span className="ms-2 font-mono text-[11px] text-faint">{t("auth.console")}</span>
+            <span className="ms-auto font-mono text-[9.5px] uppercase tracking-wider text-violet3">did:key · p-256</span>
           </div>
 
           <div className="p-5">
             {phase === "idle" && (
               <div>
-                <p className="text-[14px] leading-relaxed text-dim">{t("auth.intro")}</p>
+                <h1 className="text-[17px] font-extrabold">{t("auth.title")}</h1>
+                <p className="mt-1 text-[13px] text-dim">{t("auth.sub")}</p>
+                <p className="mt-3 text-[13.5px] leading-relaxed text-dim">{t("auth.intro")}</p>
                 <button onClick={create} className="btn-brand mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-extrabold">
                   <BoltIcon className="h-4 w-4" />
-                  {t("auth.createDid")}
+                  {t("auth.start")}
                 </button>
                 <button
                   onClick={() => {
@@ -149,13 +150,14 @@ export default function AuthGate({
 
             {phase === "import" && (
               <div>
-                <p className="text-[13px] text-dim">{t("auth.importHint")}</p>
+                <h1 className="text-[17px] font-extrabold">{t("auth.importTitle")}</h1>
+                <p className="mt-1 text-[13px] text-dim">{t("auth.importHint")}</p>
                 <textarea
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
                   rows={6}
                   placeholder='{ "app": "aide", "did": "did:key:z…", "priv": { … } }'
-                  className="field field-mono mt-3 w-full resize-y text-[11.5px]"
+                  className="field field-mono ltr-keep mt-3 w-full resize-y text-[11.5px]"
                 />
                 {error && <p className="mt-2 text-[12.5px] font-semibold text-coral">{error}</p>}
                 <div className="mt-3 flex gap-2">
@@ -172,7 +174,7 @@ export default function AuthGate({
                   <button
                     onClick={restore}
                     disabled={!importText.trim()}
-                    className="btn-brand flex-1 rounded-xl py-2.5 text-[13px] font-extrabold disabled:opacity-35 disabled:saturate-50"
+                    className="btn-brand flex-1 rounded-xl py-2.5 text-[13px] font-extrabold disabled:opacity-35"
                   >
                     {t("auth.verify")}
                   </button>
@@ -207,11 +209,11 @@ export default function AuthGate({
 
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => copy(identity.did, "did")}
+                    onClick={() => copy(identity.did)}
                     className="row-hl flex items-center justify-center gap-2 rounded-xl border border-line py-2.5 text-[12.5px] font-bold text-dim hover:text-text"
                   >
-                    {copied === "did" ? <CheckIcon className="h-3.5 w-3.5 text-mint" /> : <CopyIcon className="h-3.5 w-3.5" />}
-                    {copied === "did" ? t("common.copied") : t("profile.copyDid")}
+                    {copied ? <CheckIcon className="h-3.5 w-3.5 text-mint" /> : <CopyIcon className="h-3.5 w-3.5" />}
+                    {copied ? t("common.copied") : t("profile.copyDid")}
                   </button>
                   <button
                     onClick={() => download(identity)}
