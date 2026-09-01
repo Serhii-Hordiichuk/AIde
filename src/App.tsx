@@ -3,14 +3,14 @@ import { PROVIDERS, providerById, KIND_LABEL } from "./data/providers";
 import { DEFAULT_MODEL_ID } from "./data/models";
 import {
   load, save, newConversation, uid,
-  type Conversation, type ProviderCfg, type Project,
+  type Conversation, type ProviderCfg,
 } from "./lib/store";
 import { fetchProviderModels, freshEntries, type LiveCatalog } from "./lib/modelFetch";
 import { identityBackup, shortDid, type Identity } from "./lib/did";
 import { useI18n } from "./lib/i18n";
 import { useTheme } from "./lib/theme";
 import ChatMode from "./components/ChatMode";
-import CoderMode from "./components/CoderMode";
+
 import TranslatorMode from "./components/TranslatorMode";
 import ModelPicker from "./components/ModelPicker";
 import Landing from "./components/Landing";
@@ -18,11 +18,11 @@ import AuthGate from "./components/AuthGate";
 import { ThemeToggle, LangPicker } from "./components/Appearance";
 import {
   BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon,
-  KeyIcon, ChatIcon, CodeIcon, CheckIcon, CopyIcon,
+  KeyIcon, ChatIcon, CheckIcon, CopyIcon,
   PanelLeftIcon, DotsIcon, PenIcon, TranslateIcon, Seal, Tryzub,
 } from "./components/Icons";
 
-type Mode = "chat" | "coder" | "translate";
+type Mode = "chat" | "translate";
 
 const GROUP_ORDER = ["Today", "Yesterday", "Previous 7 Days", "Previous 30 Days", "Older"] as const;
 
@@ -44,7 +44,10 @@ export default function App() {
   const { t, lang } = useI18n();
   const theme = useTheme();
 
-  const [mode, setMode] = useState<Mode>(() => load<Mode>("mode", "chat"));
+  const [mode, setMode] = useState<Mode>(() => {
+    const m = load<Mode>("mode", "chat");
+    return m === "translate" ? "translate" : "chat";
+  });
   const [sideOpen, setSideOpen] = useState(() => load("sideOpen", true));
   const [mobileSide, setMobileSide] = useState(false);
 
@@ -64,15 +67,14 @@ export default function App() {
     return merged;
   });
 
-  const [projects, setProjects] = useState<Project[]>(() => load<Project[]>("projects", []));
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => load<string | null>("activeProject", null));
+
   const [showSettings, setShowSettings] = useState(false);
 
   /* per-item kebab menu + inline rename + delete modal */
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<{ kind: "chat" | "project" | "identity"; id: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: "chat" | "identity"; id: string; name: string } | null>(null);
   const [profileMenu, setProfileMenu] = useState(false);
 
   /* DID identity (gate): landing → auth → app */
@@ -95,8 +97,7 @@ export default function App() {
   useEffect(() => save("active", activeId), [activeId]);
   useEffect(() => save("model", modelId), [modelId]);
   useEffect(() => save("cfgs", cfgs), [cfgs]);
-  useEffect(() => save("projects", projects), [projects]);
-  useEffect(() => save("activeProject", activeProjectId), [activeProjectId]);
+
   useEffect(() => save("mode", mode), [mode]);
   useEffect(() => save("sideOpen", sideOpen), [sideOpen]);
   useEffect(() => save("catalog", catalog), [catalog]);
@@ -171,35 +172,6 @@ export default function App() {
     [activeId]
   );
 
-  const createProject = useCallback((prompt: string) => {
-    const p: Project = {
-      id: uid(),
-      name: prompt.length > 34 ? prompt.slice(0, 34) + "…" : prompt,
-      prompt,
-      templateId: "",
-      files: [],
-      createdAt: Date.now(),
-      status: "building",
-    };
-    setProjects((prev) => [p, ...prev]);
-    setActiveProjectId(p.id);
-    setMode("coder");
-    return p.id;
-  }, []);
-
-  const patchProject = useCallback((id: string, fn: (p: Project) => Project) => {
-    setProjects((prev) => prev.map((p) => (p.id === id ? fn(p) : p)));
-  }, []);
-
-  const deleteProject = useCallback(
-    (id: string) => {
-      setProjects((prev) => prev.filter((p) => p.id !== id));
-      if (activeProjectId === id) setActiveProjectId(null);
-      setDeleteTarget(null);
-    },
-    [activeProjectId]
-  );
-
   function logout() {
     try {
       Object.keys(localStorage)
@@ -222,7 +194,6 @@ export default function App() {
 
   /* ---------- derived ---------- */
   const active = convs.find((c) => c.id === activeId) ?? convs[0];
-  const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const nKeys = Object.values(cfgs).filter((c) => c.key?.trim()).length;
 
   const groups = GROUP_ORDER.map((g) => ({
@@ -431,113 +402,23 @@ export default function App() {
           </div>
         ))}
 
-        <p className="px-2 pb-1 pt-3 text-[11px] font-bold text-faint">{t("nav.projects")}</p>
-        {projects.length === 0 ? (
-          <p className="px-2 py-1 font-mono text-[10.5px] text-faint">{t("nav.noProjects")}</p>
-        ) : (
-          <ul className="space-y-0.5">
-            {projects.map((p) => {
-              const isActive = p.id === activeProjectId && mode === "coder";
-              const isMenu = menuFor === p.id;
-              return (
-                <li key={p.id} className="relative">
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setActiveProjectId(p.id);
-                      setMode("coder");
-                      setMobileSide(false);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setActiveProjectId(p.id);
-                        setMode("coder");
-                        setMobileSide(false);
-                      }
-                    }}
-                    className={`group flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-start text-[13px] transition-all ${
-                      isActive ? "bg-panel3 font-semibold text-text" : "text-dim hover:bg-panel2 hover:text-text"
-                    }`}
-                  >
-                    <span
-                      className={`absolute start-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-e bg-gold transition-opacity ${
-                        isActive ? "opacity-100" : "opacity-0"
-                      }`}
-                    />
-                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${p.status === "ready" ? "bg-mint" : "animate-pulse bg-gold"}`}
-                      title={p.status === "ready" ? t("coder.ready") : t("coder.inProgress")}
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuFor(isMenu ? null : p.id);
-                      }}
-                      className={`shrink-0 rounded-md p-0.5 transition-opacity hover:bg-panel3 focus-visible:opacity-100 ${
-                        isMenu ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={t("common.options")}
-                      aria-label={t("common.options")}
-                    >
-                      <DotsIcon className="h-4 w-4 text-faint" />
-                    </button>
-                  </div>
-
-                  {isMenu && (
-                    <div
-                      ref={menuRef}
-                      className="anim-rise absolute end-2 top-9 z-50 w-40 overflow-hidden rounded-xl border border-line2 bg-panel2 py-1 shadow-xl"
-                    >
-                      <button
-                        onClick={() => {
-                          setActiveProjectId(p.id);
-                          setMode("coder");
-                          setMenuFor(null);
-                          setMobileSide(false);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-start text-[13px] text-dim transition-colors hover:bg-panel3 hover:text-text"
-                      >
-                        <CodeIcon className="h-3.5 w-3.5" /> {t("common.open")}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setDeleteTarget({ kind: "project", id: p.id, name: p.name });
-                          setMenuFor(null);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-start text-[13px] text-coral transition-colors hover:bg-coral/10"
-                      >
-                        <TrashIcon className="h-3.5 w-3.5" /> {t("common.delete")}
-                      </button>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </div>
 
-      {/* feature link + profile */}
+      {/* linguist shortcut + profile */}
       <div className="border-t border-line px-3 pb-1 pt-2.5">
         <button
           onClick={() => {
-            setMode("coder");
+            setMode("translate");
             setMobileSide(false);
           }}
-          className={`row-hl flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-all ${
-            mode === "coder" ? "bg-panel3 text-text" : "text-dim hover:text-text"
-          }`}
-          title={t("nav.coderLink")}
+          className="row-hl flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start text-dim transition-all hover:text-text"
+          title={t("tr.title")}
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet/15 text-violet2">
-            <CodeIcon className="h-3.5 w-3.5" />
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyanic/15 text-cyanic">
+            <TranslateIcon className="h-3.5 w-3.5" />
           </span>
-          <span className="flex-1 text-[13px] font-bold">{t("nav.coderLink")}</span>
-          <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">{t("nav.buildApps")}</span>
+          <span className="flex-1 text-[13px] font-bold">{t("tr.title")}</span>
+          <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">{t("tr.taglineShort")}</span>
         </button>
       </div>
 
@@ -645,14 +526,12 @@ export default function App() {
                   </button>
                 ))}
                 <button
-                  onClick={() => setMode("coder")}
-                  className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
-                    mode === "coder" ? "bg-gold/15 text-gold" : "text-dim hover:bg-panel2 hover:text-text"
-                  }`}
-                  title={t("nav.coderLink")}
-                  aria-label={t("nav.coderLink")}
+                  onClick={() => setMode("translate")}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl text-dim transition-colors hover:bg-panel2 hover:text-text"
+                  title={t("tr.title")}
+                  aria-label={t("tr.title")}
                 >
-                  <CodeIcon className="h-4 w-4" />
+                  <TranslateIcon className="h-4 w-4" />
                 </button>
                 <div className="flex-1" />
                 <button
@@ -719,7 +598,6 @@ export default function App() {
             {(
               [
                 { id: "chat", label: t("mode.chat"), icon: ChatIcon },
-                { id: "coder", label: t("coder.title"), icon: CodeIcon },
                 { id: "translate", label: t("tr.title"), icon: TranslateIcon },
               ] as const
             ).map((m) => (
@@ -752,15 +630,6 @@ export default function App() {
                 onRefreshAll={refreshAll}
               />
             )
-          ) : mode === "coder" ? (
-            <CoderMode
-              project={activeProject}
-              patchProject={patchProject}
-              createProject={createProject}
-              cfgs={cfgs}
-              catalog={catalog}
-              modelId={modelId}
-            />
           ) : (
             <TranslatorMode cfgs={cfgs} catalog={catalog} modelId={modelId} />
           )}
@@ -798,7 +667,6 @@ export default function App() {
               <button
                 onClick={() => {
                   if (deleteTarget.kind === "chat") handleDelete(deleteTarget.id);
-                  else if (deleteTarget.kind === "project") deleteProject(deleteTarget.id);
                   else logout();
                 }}
                 className="flex-1 rounded-xl bg-coral py-2.5 text-[13px] font-extrabold text-white transition-all hover:brightness-110"
