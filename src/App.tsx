@@ -18,12 +18,12 @@ import ModelPicker from "./components/ModelPicker";
 import Landing from "./components/Landing";
 import AuthGate from "./components/AuthGate";
 import { ThemeToggle, LangPicker } from "./components/Appearance";
-import { loadWallet, saveWallet, fmtAide, type Wallet } from "./lib/wallet";
+import { loadWallet, saveWallet, type Wallet } from "./lib/wallet";
 import {
   BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon,
   KeyIcon, ChatIcon, CheckIcon, CopyIcon,
   PanelLeftIcon, DotsIcon, PenIcon, TranslateIcon, Seal, Tryzub,
-  MicIcon, GlobeIcon, BoltIcon,
+  MicIcon, GlobeIcon,
 } from "./components/Icons";
 
 type Mode = "chat" | "translate" | "interpreters";
@@ -419,24 +419,6 @@ export default function App() {
 
       </div>
 
-      {/* linguist shortcut + profile */}
-      <div className="border-t border-line px-3 pb-1 pt-2.5">
-        <button
-          onClick={() => {
-            setMode("translate");
-            setMobileSide(false);
-          }}
-          className="row-hl flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start text-dim transition-all hover:text-text"
-          title={t("tr.title")}
-        >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyanic/15 text-cyanic">
-            <TranslateIcon className="h-3.5 w-3.5" />
-          </span>
-          <span className="flex-1 text-[13px] font-bold">{t("tr.title")}</span>
-          <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">{t("tr.taglineShort")}</span>
-        </button>
-      </div>
-
       <div className="relative border-t border-line p-3" ref={profileRef}>
         <button
           onClick={() => setProfileMenu((v) => !v)}
@@ -540,14 +522,6 @@ export default function App() {
                     <ChatIcon className="h-4 w-4" />
                   </button>
                 ))}
-                <button
-                  onClick={() => setMode("translate")}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl text-dim transition-colors hover:bg-panel2 hover:text-text"
-                  title={t("tr.title")}
-                  aria-label={t("tr.title")}
-                >
-                  <TranslateIcon className="h-4 w-4" />
-                </button>
                 <div className="flex-1" />
                 <button
                   onClick={() => setShowSettings(true)}
@@ -586,20 +560,6 @@ export default function App() {
               <PanelLeftIcon className="h-4.5 w-4.5" />
             </button>
           )}
-          {mode === "translate" && (
-            <button
-              onClick={() => {
-                setMode("chat");
-                setMobileSide(false);
-              }}
-              className="icon-btn"
-              title={t("nav.openMenu")}
-              aria-label={t("nav.openMenu")}
-            >
-              <PanelLeftIcon className="h-4.5 w-4.5" />
-            </button>
-          )}
-
           <ModelPicker
             modelId={modelId}
             onChange={setModelId}
@@ -609,16 +569,8 @@ export default function App() {
             onRefreshAll={refreshAll}
           />
 
-          {/* wallet + wearables + privacy */}
+          {/* wearables + privacy */}
           <div className="ms-auto flex items-center gap-1.5">
-            <button
-              onClick={() => setMode("interpreters")}
-              className="flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-2.5 py-1.5 font-mono text-[11.5px] font-bold text-gold transition-all hover:bg-gold/15"
-              title={t("nav.interpreters")}
-            >
-              <BoltIcon className="h-3.5 w-3.5" />
-              {fmtAide(wallet.balance)}
-            </button>
             <button
               onClick={() => setShowWearables(true)}
               className="icon-btn"

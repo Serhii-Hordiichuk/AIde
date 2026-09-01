@@ -635,14 +635,17 @@ function DocPanel({ model, provider, cfg }: { model: ReturnType<typeof getModelI
             </>
           )}
           <button
-            onClick={run}
-            disabled={!doc.trim() || !!progress}
-            className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-[12.5px] font-extrabold disabled:opacity-35"
+            onClick={progress ? () => acRef.current?.abort() : run}
+            disabled={!progress && !doc.trim()}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[12.5px] font-extrabold transition-all disabled:opacity-35 ${
+              progress ? "bg-coral/15 text-coral hover:bg-coral/25" : "btn-brand"
+            }`}
+            title={progress ? t("chat.stop") : t("tr.docTranslate")}
           >
             {progress ? (
               <>
                 <StopIcon className="h-3.5 w-3.5" />
-                {progress.done}/{progress.total}
+                {progress.done}/{progress.total} · {t("chat.stop")}
               </>
             ) : (
               <>
