@@ -202,7 +202,12 @@ export default function InterpretersMode({ wallet, setWallet, did }: Props) {
       </div>
 
       {surveyOpen && lastSurvey && (
-        <SurveyModal note={lastSurvey.note} onClose={() => setSurveyOpen(false)} />
+        <SurveyModal
+          note={lastSurvey.note}
+          wallet={wallet}
+          setWallet={setWallet}
+          onClose={() => setSurveyOpen(false)}
+        />
       )}
     </div>
   );
@@ -288,10 +293,27 @@ function EarnPanel({ wallet, setWallet, did }: { wallet: Wallet; setWallet: (w: 
   );
 }
 
-function SurveyModal({ note, onClose }: { note: string; onClose: () => void }) {
+function SurveyModal({
+  note,
+  wallet,
+  setWallet,
+  onClose,
+}: {
+  note: string;
+  wallet: Wallet;
+  setWallet: (w: Wallet) => void;
+  onClose: () => void;
+}) {
   const { t } = useI18n();
   const [slang, setSlang] = useState("");
   const [done, setDone] = useState(false);
+
+  function submit() {
+    const after = credit(wallet, 2, `survey · ${note}`, "earn");
+    setWallet(after);
+    setDone(true);
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="backdrop-in absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={onClose} />
@@ -306,7 +328,7 @@ function SurveyModal({ note, onClose }: { note: string; onClose: () => void }) {
             </label>
             <div className="mt-4 flex gap-2">
               <button onClick={onClose} className="row-hl flex-1 rounded-xl border border-line py-2.5 text-[13px] font-bold text-dim hover:text-text">{t("common.skip")}</button>
-              <button onClick={() => setDone(true)} className="btn-brand flex-1 rounded-xl py-2.5 text-[13px] font-extrabold">{t("survey.submit")}</button>
+              <button onClick={submit} className="btn-brand flex-1 rounded-xl py-2.5 text-[13px] font-extrabold">{t("survey.submit")}</button>
             </div>
           </>
         ) : (
