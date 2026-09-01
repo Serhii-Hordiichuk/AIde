@@ -10,19 +10,23 @@ import { identityBackup, shortDid, type Identity } from "./lib/did";
 import { useI18n } from "./lib/i18n";
 import { useTheme } from "./lib/theme";
 import ChatMode from "./components/ChatMode";
-
 import TranslatorMode from "./components/TranslatorMode";
+import InterpretersMode from "./components/InterpretersMode";
+import WearablesPanel from "./components/WearablesPanel";
+import TransparencyPanel from "./components/TransparencyPanel";
 import ModelPicker from "./components/ModelPicker";
 import Landing from "./components/Landing";
 import AuthGate from "./components/AuthGate";
 import { ThemeToggle, LangPicker } from "./components/Appearance";
+import { loadWallet, saveWallet, fmtAide, type Wallet } from "./lib/wallet";
 import {
   BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon,
   KeyIcon, ChatIcon, CheckIcon, CopyIcon,
   PanelLeftIcon, DotsIcon, PenIcon, TranslateIcon, Seal, Tryzub,
+  MicIcon, GlobeIcon, BoltIcon,
 } from "./components/Icons";
 
-type Mode = "chat" | "translate";
+type Mode = "chat" | "translate" | "interpreters";
 
 const GROUP_ORDER = ["Today", "Yesterday", "Previous 7 Days", "Previous 30 Days", "Older"] as const;
 
@@ -84,6 +88,17 @@ export default function App() {
 
   /* live model catalog, fetched from provider APIs */
   const [catalog, setCatalog] = useState<LiveCatalog>(() => load<LiveCatalog>("catalog", {}));
+
+  /* AIDE token wallet (local-first ledger) */
+  const [wallet, setWalletState] = useState<Wallet>(() => loadWallet());
+  const setWallet = (w: Wallet) => {
+    setWalletState(w);
+    saveWallet(w);
+  };
+
+  /* floating panels */
+  const [showWearables, setShowWearables] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -594,11 +609,40 @@ export default function App() {
             onRefreshAll={refreshAll}
           />
 
-          <div className="ms-auto flex items-center gap-1 rounded-full border border-line bg-panel p-1">
+          {/* wallet + wearables + privacy */}
+          <div className="ms-auto flex items-center gap-1.5">
+            <button
+              onClick={() => setMode("interpreters")}
+              className="flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-2.5 py-1.5 font-mono text-[11.5px] font-bold text-gold transition-all hover:bg-gold/15"
+              title={t("nav.interpreters")}
+            >
+              <BoltIcon className="h-3.5 w-3.5" />
+              {fmtAide(wallet.balance)}
+            </button>
+            <button
+              onClick={() => setShowWearables(true)}
+              className="icon-btn"
+              title={t("wear.title")}
+              aria-label={t("wear.title")}
+            >
+              <GlobeIcon className="h-4.5 w-4.5" />
+            </button>
+            <button
+              onClick={() => setShowPrivacy(true)}
+              className="icon-btn"
+              title={t("privacy.title")}
+              aria-label={t("privacy.title")}
+            >
+              <KeyIcon className="h-4.5 w-4.5" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1 rounded-full border border-line bg-panel p-1">
             {(
               [
                 { id: "chat", label: t("mode.chat"), icon: ChatIcon },
                 { id: "translate", label: t("tr.title"), icon: TranslateIcon },
+                { id: "interpreters", label: t("nav.interpreters"), icon: MicIcon },
               ] as const
             ).map((m) => (
               <button
@@ -630,11 +674,22 @@ export default function App() {
                 onRefreshAll={refreshAll}
               />
             )
-          ) : (
+          ) : mode === "translate" ? (
             <TranslatorMode cfgs={cfgs} catalog={catalog} modelId={modelId} />
+          ) : (
+            identity && (
+              <InterpretersMode
+                wallet={wallet}
+                setWallet={setWallet}
+                did={identity.did}
+              />
+            )
           )}
         </div>
       </div>
+
+      {showWearables && <WearablesPanel onClose={() => setShowWearables(false)} />}
+      {showPrivacy && <TransparencyPanel onClose={() => setShowPrivacy(false)} />}
 
       {showSettings && (
         <SettingsModal
