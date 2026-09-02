@@ -19,9 +19,14 @@ export const BrandMark = ({ className = "w-8 h-8" }: IP) => (
         <stop offset="1" style={{ stopColor: "var(--t-violet)" }} />
       </linearGradient>
     </defs>
-    <path d="M16 2.8l11.4 6.6v13.2L16 29.2 4.6 22.6V9.4z" style={{ fill: "var(--t-panel3)" }} stroke="url(#aide-g)" strokeOpacity="0.75" strokeWidth="1.5" strokeLinejoin="round" />
-    <path d="M11 21.5L16 10.5l5 11" stroke="url(#aide-g)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    <rect x="13" y="18.3" width="6" height="2.4" rx="1.2" style={{ fill: "var(--t-gold)" }} />
+    <rect x="1.5" y="1.5" width="29" height="29" rx="9.5" style={{ fill: "var(--t-panel3)" }} stroke="url(#aide-g)" strokeOpacity="0.7" strokeWidth="1.5" />
+    {/* 文 — source language */}
+    <g stroke="url(#aide-g)" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none">
+      <path d="M7.5 9.5h8M11.5 7.6v2.2M8.6 12.4c1 2.6 2.6 4.3 4.9 5.4M14.4 12.4c-.8 3-2.6 5-5.8 6.4" />
+    </g>
+    {/* A — target language */}
+    <path d="M17.6 24.2L21.5 13.8l3.9 10.4" fill="none" style={{ stroke: "var(--t-gold)" }} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M19 20.6h5" style={{ stroke: "var(--t-gold)" }} strokeWidth="2" strokeLinecap="round" />
   </svg>
 );
 
@@ -156,6 +161,13 @@ export const GlobeIcon = (p: IP) => (
 export const BrainIcon = (p: IP) => (
   <S {...p}>
     <path d="M9.5 4A2.5 2.5 0 0 0 7 6.5c-1.7.3-3 1.8-3 3.6 0 1 .4 1.9 1 2.6-.6.7-1 1.6-1 2.6A3.7 3.7 0 0 0 7.7 19c.4 1.2 1.5 2 2.8 2 1 0 1.9-.5 2.5-1.2V6.2A2.5 2.5 0 0 0 9.5 4zM14.5 4A2.5 2.5 0 0 1 17 6.5c1.7.3 3 1.8 3 3.6 0 1-.4 1.9-1 2.6.6.7 1 1.6 1 2.6a3.7 3.7 0 0 1-3.7 3.7c-.4 1.2-1.5 2-2.8 2-1 0-1.9-.5-2.5-1.2V6.2A2.5 2.5 0 0 1 14.5 4z" />
+  </S>
+);
+
+export const PanelLeftIcon = (p: IP) => (
+  <S {...p}>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+    <path d="M9.5 4.5v15" />
   </S>
 );
 
