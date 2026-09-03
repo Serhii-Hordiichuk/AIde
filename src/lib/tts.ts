@@ -1,7 +1,5 @@
 import { ttsLang } from "./languages";
 
-/* Speech synthesis helpers — picks the best system voice for the language. */
-
 export function ttsSupported(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
@@ -32,11 +30,7 @@ function warmVoices() {
   window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 }
 
-export function speakText(
-  text: string,
-  langCode: string,
-  opts?: { onEnd?: () => void; maxChars?: number }
-): void {
+export function speakText(text: string, langCode: string, opts?: { onEnd?: () => void; maxChars?: number }): void {
   if (!ttsSupported()) {
     opts?.onEnd?.();
     return;

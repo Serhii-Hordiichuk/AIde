@@ -22,7 +22,6 @@ export function loadThemeMode(): ThemeMode {
   return "auto";
 }
 
-/** Applies `data-theme` to <html> based on mode (auto follows the OS). */
 export function useTheme() {
   const [mode, setModeState] = useState<ThemeMode>(loadThemeMode);
   const [resolved, setResolved] = useState<"light" | "dark">(() => {

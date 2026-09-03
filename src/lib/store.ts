@@ -4,8 +4,8 @@ export interface ChatMessage {
   content: string;
   modelId?: string;
   error?: boolean;
-  tokens?: number;
   ts: number;
+  tokens?: number;
 }
 
 export interface Conversation {
@@ -22,27 +22,7 @@ export interface GenParams {
   system: string;
 }
 
-export const DEFAULT_PARAMS: GenParams = {
-  temperature: 0.7,
-  topP: 0.95,
-  maxTokens: 4096,
-  system: "",
-};
-
-export interface ProjectFile {
-  name: string;
-  content: string;
-}
-
-export interface Project {
-  id: string;
-  name: string;
-  prompt: string;
-  templateId: string;
-  files: ProjectFile[];
-  createdAt: number;
-  status: "building" | "ready";
-}
+export const DEFAULT_PARAMS: GenParams = { temperature: 0.7, topP: 0.95, maxTokens: 2048, system: "" };
 
 export interface ProviderCfg {
   key: string;
@@ -65,6 +45,16 @@ export function save(k: string, v: unknown) {
     localStorage.setItem(NS + k, JSON.stringify(v));
   } catch {
     /* ignore quota */
+  }
+}
+
+export function wipeAll() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(NS))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* ignore */
   }
 }
 

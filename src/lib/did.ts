@@ -41,9 +41,8 @@ function compressPoint(xB64: string, yB64: string): Uint8Array {
   return out;
 }
 
-function didFromJwk(jwk: JsonWebKey): string {
-  // multicodec p256-pub = 0x1200 → varint bytes [0x80, 0x24]
-  const pk = compressPoint(jwk.x!, jwk.y!);
+function didFromJwk(jwk: { x: string; y: string }): string {
+  const pk = compressPoint(jwk.x, jwk.y);
   const full = new Uint8Array(2 + pk.length);
   full[0] = 0x80;
   full[1] = 0x24;
@@ -52,23 +51,11 @@ function didFromJwk(jwk: JsonWebKey): string {
 }
 
 export async function createIdentity(): Promise<Identity> {
-  const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
-    "sign",
-    "verify",
-  ]);
+  const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   const jwk = await crypto.subtle.exportKey("jwk", pair.privateKey);
-  const did = didFromJwk(jwk);
-  // sign a challenge to prove possession of the private key
-  await crypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
-    pair.privateKey,
-    new TextEncoder().encode("aide:" + did)
-  );
-  return {
-    did,
-    priv: { d: jwk.d!, x: jwk.x!, y: jwk.y! },
-    createdAt: Date.now(),
-  };
+  const did = didFromJwk({ x: jwk.x!, y: jwk.y! });
+  await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, pair.privateKey, new TextEncoder().encode("aide:" + did));
+  return { did, priv: { d: jwk.d!, x: jwk.x!, y: jwk.y! }, createdAt: Date.now() };
 }
 
 export function identityBackup(id: Identity): string {
@@ -85,23 +72,12 @@ export async function importIdentity(text: string): Promise<Identity> {
   if (parsed.app !== "aide" || !parsed.did?.startsWith("did:key:z") || !parsed.priv?.d || !parsed.priv?.x || !parsed.priv?.y) {
     throw new Error("invalid backup file");
   }
-  const jwk: JsonWebKey = {
-    kty: "EC",
-    crv: "P-256",
-    d: parsed.priv.d,
-    x: parsed.priv.x,
-    y: parsed.priv.y,
-  };
-  // verify the key is real by importing & signing
+  const jwk: JsonWebKey = { kty: "EC", crv: "P-256", d: parsed.priv.d, x: parsed.priv.x, y: parsed.priv.y };
   const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
   await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode("aide:" + parsed.did));
-  const reDerived = didFromJwk({ x: parsed.priv.x, y: parsed.priv.y } as JsonWebKey);
+  const reDerived = didFromJwk({ x: parsed.priv.x, y: parsed.priv.y });
   if (reDerived !== parsed.did) throw new Error("DID does not match the key");
-  return {
-    did: parsed.did,
-    priv: { d: parsed.priv.d, x: parsed.priv.x, y: parsed.priv.y },
-    createdAt: Date.now(),
-  };
+  return { did: parsed.did, priv: { d: parsed.priv.d, x: parsed.priv.x, y: parsed.priv.y }, createdAt: Date.now() };
 }
 
 export function shortDid(did: string): string {

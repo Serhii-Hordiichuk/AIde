@@ -1,79 +1,51 @@
-import { useEffect, useRef, useState } from "react";
+import { useI18n, UI_LANGS } from "../lib/i18n";
 import type { ThemeMode } from "../lib/theme";
-import { LANG_OPTIONS, useI18n, type Lang } from "../lib/i18n";
-import { SunIcon, MoonIcon, MonitorIcon, CheckIcon, GlobeIcon } from "./Icons";
+import { SunIcon, MoonIcon, MonitorIcon } from "./Icons";
 
-/** Theme cycler: auto → light → dark. */
 export function ThemeToggle({ mode, setMode }: { mode: ThemeMode; setMode: (m: ThemeMode) => void }) {
-  const next: Record<ThemeMode, ThemeMode> = { auto: "light", light: "dark", dark: "auto" };
-  const Icon = mode === "light" ? SunIcon : mode === "dark" ? MoonIcon : MonitorIcon;
-  const label = mode === "light" ? "ui.themeLight" : mode === "dark" ? "ui.themeDark" : "ui.themeAuto";
+  const { t } = useI18n();
+  const opts: { id: ThemeMode; icon: React.ReactNode; label: string }[] = [
+    { id: "auto", icon: <MonitorIcon className="h-3.5 w-3.5" />, label: t("ui.themeAuto") },
+    { id: "light", icon: <SunIcon className="h-3.5 w-3.5" />, label: t("ui.themeLight") },
+    { id: "dark", icon: <MoonIcon className="h-3.5 w-3.5" />, label: t("ui.themeDark") },
+  ];
   return (
-    <button
-      onClick={() => setMode(next[mode])}
-      className="row-hl flex h-8 items-center gap-1.5 rounded-lg border border-line px-2 text-dim transition-all hover:border-line2 hover:text-text"
-      title={`Theme: ${label}`}
-      aria-label={`Theme: ${label}`}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      <span className="hidden text-[11.5px] font-bold sm:inline">{label === "ui.themeLight" ? "☀" : label === "ui.themeDark" ? "☾" : "⚙"} </span>
-    </button>
+    <div className="flex items-center gap-0.5 rounded-full border border-line bg-panel p-0.5" role="radiogroup" aria-label={t("ui.theme")}>
+      {opts.map((o) => (
+        <button
+          key={o.id}
+          role="radio"
+          aria-checked={mode === o.id}
+          onClick={() => setMode(o.id)}
+          title={o.label}
+          className={`flex h-7 w-7 items-center justify-center rounded-full transition-all ${
+            mode === o.id ? "bg-violet/20 text-violet2" : "text-faint hover:text-dim"
+          }`}
+        >
+          {o.icon}
+        </button>
+      ))}
+    </div>
   );
 }
 
-/** Language picker popover. */
-export function LangPicker({ compact }: { compact?: boolean }) {
+export function LangPicker({ compact = false }: { compact?: boolean }) {
   const { lang, setLang, t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const current = LANG_OPTIONS.find((l) => l.code === lang) ?? LANG_OPTIONS[0];
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener("mousedown", h);
-    return () => window.removeEventListener("mousedown", h);
-  }, []);
-
-  const pick = (code: Lang) => {
-    setLang(code);
-    setOpen(false);
-  };
-
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="row-hl flex h-8 items-center gap-1.5 rounded-lg border border-line px-2 text-dim transition-all hover:border-line2 hover:text-text"
-        title={t("ui.language")}
-        aria-label={t("ui.language")}
-      >
-        <GlobeIcon className="h-3.5 w-3.5" />
-        <span className={`text-[11.5px] font-bold ${compact ? "hidden" : ""}`}>{current.native}</span>
-      </button>
-      {open && (
-        <>
-          <div className="backdrop-in fixed inset-0 z-40 md:hidden" onClick={() => setOpen(false)} />
-          <div className="anim-rise absolute end-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-xl border border-line2 bg-panel py-1 shadow-xl">
-            {LANG_OPTIONS.map((l) => (
-              <button
-                key={l.code}
-                onClick={() => pick(l.code)}
-                className={`flex w-full items-center justify-between px-3.5 py-2 text-left text-[13px] transition-colors ${
-                  l.code === lang ? "font-bold text-violet3" : "text-dim hover:bg-panel2 hover:text-text"
-                }`}
-              >
-                <span>
-                  {l.native}
-                  <span className="ms-2 text-[10.5px] text-faint">{l.label}</span>
-                </span>
-                {l.code === lang && <CheckIcon className="h-3.5 w-3.5" />}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <select
+      value={lang}
+      onChange={(e) => setLang(e.target.value as typeof lang)}
+      aria-label={t("ui.language")}
+      title={t("ui.language")}
+      className={`cursor-pointer rounded-full border border-line bg-panel text-[12px] font-bold text-dim outline-none transition-colors hover:border-line2 hover:text-text ${
+        compact ? "h-7 px-2" : "px-2.5 py-1.5"
+      }`}
+    >
+      {UI_LANGS.map((l) => (
+        <option key={l.code} value={l.code}>
+          {l.label}
+        </option>
+      ))}
+    </select>
   );
 }

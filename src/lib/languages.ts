@@ -84,23 +84,13 @@ export const LANGS: LangDef[] = [
   { code: "mn", name: "Mongolian", native: "Монгол" },
 ];
 
-export const langName = (code: string): string =>
-  LANGS.find((l) => l.code === code)?.native ?? code;
+export const langName = (code: string): string => LANGS.find((l) => l.code === code)?.native ?? code;
 
-/** Maps an app language code to a BCP-47 tag for speech synthesis. */
 export function ttsLang(code: string): string {
-  const map: Record<string, string> = {
-    zh: "zh-CN",
-    yue: "zh-HK",
-    pt: "pt-BR",
-    no: "nb-NO",
-    tl: "fil-PH",
-    he: "he-IL",
-  };
+  const map: Record<string, string> = { zh: "zh-CN", yue: "zh-HK", pt: "pt-BR", no: "nb-NO", tl: "fil-PH", he: "he-IL" };
   return map[code] ?? code;
 }
 
-/** Quick script-based source detection (used before the model confirms). */
 export function detectByScript(text: string): string | null {
   const t = text.trim();
   if (!t) return null;

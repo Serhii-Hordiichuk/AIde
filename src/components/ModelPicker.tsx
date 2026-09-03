@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { PROVIDERS, providerById } from "../data/providers";
-import { dynId, getModelInfo, isAutoModel, resolveAutoModel } from "../data/models";
+import { getModelInfo, isAutoModel, resolveAutoModel } from "../data/models";
 import type { LiveCatalog } from "../lib/modelFetch";
 import type { ProviderCfg } from "../lib/store";
 import { useI18n } from "../lib/i18n";
-import {
-  ChevronDown, CheckIcon, BoltIcon, GiftIcon, ServerIcon, RefreshIcon, KeyIcon,
-} from "./Icons";
+import { ChevronDown, CheckIcon, BoltIcon, GiftIcon, ServerIcon, RefreshIcon, KeyIcon } from "./Icons";
 
 const LIST_CAP = 60;
 
@@ -19,6 +17,14 @@ interface Props {
   onRefreshAll: () => void;
 }
 
+function freshOf(catalog: LiveCatalog): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [pid, entry] of Object.entries(catalog)) {
+    if (entry?.models?.length) out[pid] = entry.models;
+  }
+  return out;
+}
+
 export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefresh, onRefreshAll }: Props) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -26,10 +32,9 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
   const ref = useRef<HTMLDivElement>(null);
 
   const auto = isAutoModel(modelId);
-  const resolved = auto ? resolveAutoModel(modelId, cfgs, freshOf(catalog)) : getModelInfo(modelId);
-  const provider = providerById.get(resolved.providerId);
-
   const live = freshOf(catalog);
+  const resolved = auto ? resolveAutoModel(modelId, cfgs, live) : getModelInfo(modelId);
+  const provider = providerById.get(resolved.providerId);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -79,9 +84,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: provider?.accent ?? "#888" }} />
         )}
         <span className="truncate">{auto ? (modelId === "auto-free" ? t("picker.autoFree") : t("picker.autoLocal")) : resolved.name}</span>
-        {auto && (
-          <span className="hidden truncate font-mono text-[11px] font-medium text-faint sm:inline">→ {resolved.name}</span>
-        )}
+        {auto && <span className="hidden truncate font-mono text-[11px] font-medium text-faint sm:inline">→ {resolved.name}</span>}
         <ChevronDown className={`h-4 w-4 shrink-0 text-faint transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
@@ -140,18 +143,15 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
                 />
               </div>
 
-              {/* per-provider live models */}
+              {/* live providers */}
               {PROVIDERS.map((p) => {
-                const cfg = cfgs[p.id];
-                const hasKey = !!cfg?.key?.trim();
-                const reachable = p.keyless || p.local || hasKey;
                 const models = live[p.id] ?? [];
+                const reachable = p.keyless || p.local || !!cfgs[p.id]?.key?.trim();
                 const isLoading = busy.has(p.id);
-
                 return (
-                  <div key={p.id}>
-                    <div className="flex items-center gap-2 px-4 pb-1 pt-3">
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.accent }} />
+                  <div key={p.id} className="border-b border-line/40 pb-1.5 last:border-0">
+                    <div className="flex items-center gap-2 px-4 pb-1 pt-2.5">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: p.accent }} />
                       <span className="text-[12px] font-extrabold text-text">{p.name}</span>
                       {isLoading ? (
                         <span className="ms-auto flex items-center gap-1.5 font-mono text-[10px] text-faint">
@@ -163,11 +163,7 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
                           <span className="rounded bg-panel2 px-1.5 py-0.5 font-mono text-[9.5px] text-mint">
                             {models.length} {t("picker.live")}
                           </span>
-                          <button
-                            onClick={() => void refresh(p.id)}
-                            className="rounded p-1 text-faint transition-colors hover:text-violet3"
-                            title={t("picker.refetch")}
-                          >
+                          <button onClick={() => void refresh(p.id)} className="rounded p-1 text-faint transition-colors hover:text-violet3" title={t("picker.refetch")}>
                             <RefreshIcon className="h-3 w-3" />
                           </button>
                         </span>
@@ -187,38 +183,24 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
                     </div>
 
                     {models.length === 0 && reachable && !isLoading && (
-                      <p className="px-4 pb-1 text-[11px] text-faint">
-                        {p.local ? t("picker.serverDown") : t("picker.nothing")}
-                      </p>
+                      <p className="px-4 pb-1 text-[11px] text-faint">{p.local ? t("picker.serverDown") : t("picker.nothing")}</p>
                     )}
-                    {!reachable && (
-                      <p className="px-4 pb-1 text-[11px] text-faint">
-                        {p.keyless ? t("picker.keyless") : t("picker.needKey")}
-                      </p>
-                    )}
+                    {!reachable && <p className="px-4 pb-1 text-[11px] text-faint">{p.keyless ? t("picker.keyless") : t("picker.needKey")}</p>}
 
-                    {models.slice(0, LIST_CAP).map((apiId) => {
-                      const id = dynId(p.id, apiId);
+                    {models.slice(0, LIST_CAP).map((mid) => {
+                      const id = `dyn:${p.id}:${mid}`;
                       const active = modelId === id;
                       return (
                         <button
-                          key={id}
+                          key={mid}
                           onClick={() => {
                             onChange(id);
                             setOpen(false);
                           }}
-                          className={`flex w-full items-center gap-3 px-4 py-2 text-start transition-colors ${
-                            active ? "bg-violet/10" : "hover:bg-panel2"
-                          }`}
+                          className={`flex w-full items-center gap-3 px-4 py-1.5 text-start transition-colors ${active ? "bg-violet/10" : "hover:bg-panel2"}`}
                         >
-                          <span className="min-w-0 flex-1">
-                            <span className={`block truncate font-mono text-[12px] ltr-keep ${active ? "font-bold text-violet3" : "text-text"}`}>
-                              {apiId}
-                            </span>
-                          </span>
-                          <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center ${active ? "text-violet3" : "opacity-0"}`}>
-                            <CheckIcon className="h-3.5 w-3.5" />
-                          </span>
+                          <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-dim">{mid}</span>
+                          {active && <CheckIcon className="h-3.5 w-3.5 shrink-0 text-violet3" />}
                         </button>
                       );
                     })}
@@ -238,14 +220,6 @@ export default function ModelPicker({ modelId, onChange, cfgs, catalog, onRefres
   );
 }
 
-function freshOf(catalog: LiveCatalog): Record<string, string[]> {
-  const out: Record<string, string[]> = {};
-  for (const [pid, entry] of Object.entries(catalog)) {
-    if (entry?.models?.length) out[pid] = entry.models;
-  }
-  return out;
-}
-
 function AutoRow({
   id, label, icon, desc, tint, border, bg, active, resolvedName, onPick,
 }: {
@@ -261,17 +235,10 @@ function AutoRow({
   onPick: (id: string) => void;
 }) {
   return (
-    <button
-      onClick={() => onPick(id)}
-      className={`flex w-full items-center gap-3 px-4 py-2 text-start transition-colors ${active ? bg : "hover:bg-panel2"}`}
-    >
-      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${border} ${tint}`}>
-        {icon}
-      </span>
+    <button onClick={() => onPick(id)} className={`flex w-full items-center gap-3 px-4 py-2 text-start transition-colors ${active ? bg : "hover:bg-panel2"}`}>
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${border} ${tint}`}>{icon}</span>
       <span className="min-w-0 flex-1">
-        <span className={`block text-[13px] ${active ? `font-bold ${tint}` : "font-semibold text-text"}`}>
-          {label}
-        </span>
+        <span className={`block text-[13px] ${active ? `font-bold ${tint}` : "font-semibold text-text"}`}>{label}</span>
         <span className="block truncate font-mono text-[10.5px] text-faint">
           {desc} · → <span className="text-dim">{resolvedName}</span>
         </span>

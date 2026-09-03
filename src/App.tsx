@@ -1,29 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PROVIDERS, providerById, KIND_LABEL } from "./data/providers";
-import { DEFAULT_MODEL_ID } from "./data/models";
 import {
   load, save, newConversation, uid,
   type Conversation, type ProviderCfg,
 } from "./lib/store";
 import { fetchProviderModels, freshEntries, type LiveCatalog } from "./lib/modelFetch";
 import { identityBackup, shortDid, type Identity } from "./lib/did";
+import { loadWallet, fmtAide, type Wallet } from "./lib/wallet";
 import { useI18n } from "./lib/i18n";
 import { useTheme } from "./lib/theme";
 import ChatMode from "./components/ChatMode";
 import TranslatorMode from "./components/TranslatorMode";
 import InterpretersMode from "./components/InterpretersMode";
-import WearablesPanel from "./components/WearablesPanel";
-import TransparencyPanel from "./components/TransparencyPanel";
 import ModelPicker from "./components/ModelPicker";
 import Landing from "./components/Landing";
 import AuthGate from "./components/AuthGate";
+import WalletPanel from "./components/WalletPanel";
+import WearablesPanel from "./components/WearablesPanel";
+import TransparencyPanel from "./components/TransparencyPanel";
 import { ThemeToggle, LangPicker } from "./components/Appearance";
-import { loadWallet, saveWallet, fmtAide, type Wallet } from "./lib/wallet";
 import {
-  BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon, XIcon,
+  BrandMark, Wordmark, PlusIcon, TrashIcon, GearIcon,
   KeyIcon, ChatIcon, CheckIcon, CopyIcon,
   PanelLeftIcon, DotsIcon, PenIcon, TranslateIcon, Seal, Tryzub,
-  MicIcon, GlobeIcon, BoltIcon,
+  MicIcon, GlobeIcon, TokenIcon, XIcon,
 } from "./components/Icons";
 
 type Mode = "chat" | "translate" | "interpreters";
@@ -49,10 +49,9 @@ export default function App() {
   const theme = useTheme();
 
   const [mode, setMode] = useState<Mode>(() => {
-    const m = load<Mode>("mode", "chat");
-    return m === "translate" ? "translate" : "chat";
+    const m = load<string>("mode", "chat");
+    return m === "translate" || m === "interpreters" ? m : "chat";
   });
-  const [sideOpen, setSideOpen] = useState(() => load("sideOpen", true));
   const [mobileSide, setMobileSide] = useState(false);
 
   const [convs, setConvs] = useState<Conversation[]>(() => {
@@ -60,7 +59,7 @@ export default function App() {
     return stored.length ? stored : [newConversation()];
   });
   const [activeId, setActiveId] = useState<string>(() => load("active", ""));
-  const [modelId, setModelId] = useState<string>(() => load("model", DEFAULT_MODEL_ID));
+  const [modelId, setModelId] = useState<string>(() => load("model", "auto-free"));
   const [cfgs, setCfgs] = useState<Record<string, ProviderCfg>>(() => {
     const stored = load<Record<string, ProviderCfg>>("cfgs", {});
     const merged: Record<string, ProviderCfg> = {};
@@ -71,8 +70,11 @@ export default function App() {
     return merged;
   });
 
-
+  const [wallet, setWallet] = useState<Wallet>(() => loadWallet());
   const [showSettings, setShowSettings] = useState(false);
+  const [showWearables, setShowWearables] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showWallet, setShowWallet] = useState(false);
 
   /* per-item kebab menu + inline rename + delete modal */
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -89,17 +91,6 @@ export default function App() {
   /* live model catalog, fetched from provider APIs */
   const [catalog, setCatalog] = useState<LiveCatalog>(() => load<LiveCatalog>("catalog", {}));
 
-  /* AIDE token wallet (local-first ledger) */
-  const [wallet, setWalletState] = useState<Wallet>(() => loadWallet());
-  const setWallet = (w: Wallet) => {
-    setWalletState(w);
-    saveWallet(w);
-  };
-
-  /* floating panels */
-  const [showWearables, setShowWearables] = useState(false);
-  const [showPrivacy, setShowPrivacy] = useState(false);
-
   const menuRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const cfgsRef = useRef(cfgs);
@@ -112,9 +103,7 @@ export default function App() {
   useEffect(() => save("active", activeId), [activeId]);
   useEffect(() => save("model", modelId), [modelId]);
   useEffect(() => save("cfgs", cfgs), [cfgs]);
-
   useEffect(() => save("mode", mode), [mode]);
-  useEffect(() => save("sideOpen", sideOpen), [sideOpen]);
   useEffect(() => save("catalog", catalog), [catalog]);
   useEffect(() => {
     if (identity) save("identity", identity);
@@ -135,18 +124,16 @@ export default function App() {
 
   const refreshAll = useCallback(() => {
     PROVIDERS.forEach((p) => {
-      const cfg = cfgsRef.current[p.id];
-      const reachable = p.keyless || p.local || !!cfg?.key?.trim();
+      const reachable = p.keyless || p.local || !!cfgsRef.current[p.id]?.key?.trim();
       if (reachable) refreshProvider(p.id).catch(() => {});
     });
   }, [refreshProvider]);
 
-  /* on first launch: pull models for whatever is already reachable */
+  /* on boot, top-up catalogs for reachable providers */
   useEffect(() => {
     const fresh = freshEntries(catalog);
     PROVIDERS.forEach((p) => {
-      const cfg = cfgsRef.current[p.id];
-      const reachable = p.keyless || p.local || !!cfg?.key?.trim();
+      const reachable = p.keyless || p.local || !!cfgsRef.current[p.id]?.key?.trim();
       if (reachable && !fresh[p.id]) refreshProvider(p.id).catch(() => {});
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,6 +147,16 @@ export default function App() {
     },
     [refreshProvider]
   );
+
+  /* ---------- outside clicks for popovers ---------- */
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuFor(null);
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileMenu(false);
+    };
+    window.addEventListener("mousedown", h);
+    return () => window.removeEventListener("mousedown", h);
+  }, []);
 
   /* ---------- actions ---------- */
   const patchConv = useCallback((id: string, fn: (c: Conversation) => Conversation) => {
@@ -187,17 +184,6 @@ export default function App() {
     [activeId]
   );
 
-  function logout() {
-    try {
-      Object.keys(localStorage)
-        .filter((k) => k.startsWith("aide."))
-        .forEach((k) => localStorage.removeItem(k));
-    } catch {
-      /* ignore */
-    }
-    location.reload();
-  }
-
   function downloadBackup(id: Identity) {
     const blob = new Blob([identityBackup(id)], { type: "application/json" });
     const a = document.createElement("a");
@@ -207,42 +193,28 @@ export default function App() {
     URL.revokeObjectURL(a.href);
   }
 
+  function logout() {
+    try {
+      ["aide.convs", "aide.active", "aide.model", "aide.cfgs", "aide.catalog", "aide.identity", "aide.wallet", "aide.mode"].forEach((k) =>
+        localStorage.removeItem(k)
+      );
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  }
+
   /* ---------- derived ---------- */
   const active = convs.find((c) => c.id === activeId) ?? convs[0];
   const nKeys = Object.values(cfgs).filter((c) => c.key?.trim()).length;
 
   const groups = GROUP_ORDER.map((g) => ({
     g,
-    label: t(
-      g === "Today" ? "nav.today" : g === "Yesterday" ? "nav.yesterday" : g === "Previous 7 Days" ? "nav.prev7" : g === "Previous 30 Days" ? "nav.prev30" : "nav.older"
-    ),
+    label: t("nav." + g.replace(/ /g, "")),
     items: convs.filter((c) => groupLabel(c.createdAt) === g),
   })).filter((x) => x.items.length > 0);
 
-  /* click-outside for kebab & profile menus */
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuFor(null);
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileMenu(false);
-    };
-    window.addEventListener("mousedown", h);
-    return () => window.removeEventListener("mousedown", h);
-  }, []);
-
-  /* Esc closes drawers/modals */
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMobileSide(false);
-        setMenuFor(null);
-        setProfileMenu(false);
-      }
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, []);
-
-  /* ---------- DID gate ---------- */
+  /* ---------- DID gate: landing → auth → app ---------- */
   if (!identity) {
     if (gate === "landing") {
       return (
@@ -263,8 +235,8 @@ export default function App() {
       <AuthGate
         initial={authPhase}
         onBack={() => setGate("landing")}
-        theme={theme}
         onReady={(id) => setIdentity(id)}
+        theme={theme}
       />
     );
   }
@@ -282,27 +254,11 @@ export default function App() {
           </div>
           <p className="mt-1 truncate font-mono text-[8.5px] uppercase tracking-[0.2em] text-faint">{t("app.tagline")}</p>
         </div>
-        <button
-          onClick={() => setSideOpen(false)}
-          className="icon-btn ms-auto hidden md:flex"
-          title={t("nav.collapse")}
-          aria-label={t("nav.collapse")}
-        >
-          <PanelLeftIcon className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => setMobileSide(false)}
-          className="icon-btn ms-auto md:hidden"
-          title={t("nav.closeMenu")}
-          aria-label={t("nav.closeMenu")}
-        >
-          <XIcon className="h-4 w-4" />
-        </button>
       </div>
 
       <div className="p-3 pb-1">
         <button onClick={handleNew} className="btn-brand flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-extrabold">
-          <PlusIcon className="h-4 w-4 text-white" />
+          <PlusIcon className="h-4 w-4" />
           {t("nav.newChat")}
         </button>
       </div>
@@ -416,27 +372,9 @@ export default function App() {
             </ul>
           </div>
         ))}
-
       </div>
 
-      {/* linguist shortcut + profile */}
-      <div className="border-t border-line px-3 pb-1 pt-2.5">
-        <button
-          onClick={() => {
-            setMode("translate");
-            setMobileSide(false);
-          }}
-          className="row-hl flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start text-dim transition-all hover:text-text"
-          title={t("tr.title")}
-        >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyanic/15 text-cyanic">
-            <TranslateIcon className="h-3.5 w-3.5" />
-          </span>
-          <span className="flex-1 text-[13px] font-bold">{t("tr.title")}</span>
-          <span className="font-mono text-[9.5px] uppercase tracking-wider text-faint">{t("tr.taglineShort")}</span>
-        </button>
-      </div>
-
+      {/* profile */}
       <div className="relative border-t border-line p-3" ref={profileRef}>
         <button
           onClick={() => setProfileMenu((v) => !v)}
@@ -448,18 +386,13 @@ export default function App() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-bold text-text">{t("profile.name")}</span>
-            <span className="block truncate font-mono text-[9.5px] uppercase tracking-wider text-faint">
-              {identity ? shortDid(identity.did) : ""}
-            </span>
+            <span className="block truncate font-mono text-[9.5px] uppercase tracking-wider text-faint">{shortDid(identity.did)}</span>
           </span>
-          <span
-            className={`h-1.5 w-1.5 shrink-0 rounded-full ${nKeys ? "pulse-live bg-mint" : "bg-gold"}`}
-            title={nKeys ? `${nKeys} keys` : "demo"}
-          />
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${nKeys ? "pulse-live bg-mint" : "bg-gold"}`} />
         </button>
 
-        {profileMenu && identity && (
-          <div className="anim-rise absolute bottom-full start-3 z-50 mb-1 w-52 overflow-hidden rounded-xl border border-line2 bg-panel2 py-1 shadow-xl">
+        {profileMenu && (
+          <div className="anim-rise absolute bottom-full start-3 z-50 mb-1 w-56 overflow-hidden rounded-xl border border-line2 bg-panel2 py-1 shadow-xl">
             <button
               onClick={() => {
                 navigator.clipboard?.writeText(identity.did).catch(() => {});
@@ -480,6 +413,15 @@ export default function App() {
             </button>
             <button
               onClick={() => {
+                setShowWallet(true);
+                setProfileMenu(false);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-start text-[13px] text-dim transition-colors hover:bg-panel3 hover:text-text"
+            >
+              <TokenIcon className="h-3.5 w-3.5" /> {t("wallet.title")} · {fmtAide(wallet.balance)}
+            </button>
+            <button
+              onClick={() => {
                 setDeleteTarget({ kind: "identity", id: "identity", name: identity.did });
                 setProfileMenu(false);
               }}
@@ -495,110 +437,32 @@ export default function App() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-bg">
-      {/* ---------- sidebar: desktop expanded / icon rail / mobile drawer ---------- */}
-      {mode !== "translate" && (
-        <>
-          {/* desktop */}
-          <aside
-            className={`hidden shrink-0 flex-col border-e border-line bg-panel/70 backdrop-blur transition-all duration-300 md:flex ${
-              sideOpen ? "w-[266px]" : "w-[60px]"
-            }`}
-          >
-            {sideOpen ? (
-              sidebarInner
-            ) : (
-              <div className="flex h-full flex-col items-center gap-1.5 py-3">
-                <button
-                  onClick={() => setSideOpen(true)}
-                  className="mb-1 flex h-10 w-10 items-center justify-center rounded-xl text-dim transition-colors hover:bg-panel2 hover:text-text"
-                  title={t("nav.expand")}
-                  aria-label={t("nav.expand")}
-                >
-                  <PanelLeftIcon className="h-4.5 w-4.5" />
-                </button>
-                <BrandMark className="mb-2 h-8 w-8" />
-                <button
-                  onClick={handleNew}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl text-dim transition-colors hover:bg-panel2 hover:text-violet2"
-                  title={t("nav.newChat")}
-                  aria-label={t("nav.newChat")}
-                >
-                  <PlusIcon className="h-4.5 w-4.5" />
-                </button>
-                {convs.slice(0, 4).map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      setActiveId(c.id);
-                      setMode("chat");
-                    }}
-                    className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
-                      c.id === activeId && mode === "chat" ? "bg-violet/15 text-violet2" : "text-dim hover:bg-panel2 hover:text-text"
-                    }`}
-                    title={c.title || t("nav.newChat")}
-                  >
-                    <ChatIcon className="h-4 w-4" />
-                  </button>
-                ))}
-                <button
-                  onClick={() => setMode("translate")}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl text-dim transition-colors hover:bg-panel2 hover:text-text"
-                  title={t("tr.title")}
-                  aria-label={t("tr.title")}
-                >
-                  <TranslateIcon className="h-4 w-4" />
-                </button>
-                <div className="flex-1" />
-                <button
-                  onClick={() => setShowSettings(true)}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl text-dim transition-colors hover:bg-panel2 hover:text-text"
-                  title={t("nav.settings")}
-                  aria-label={t("nav.settings")}
-                >
-                  <GearIcon className="h-4.5 w-4.5" />
-                </button>
-              </div>
-            )}
-          </aside>
+      {/* desktop sidebar — always visible */}
+      <aside className="hidden w-[266px] shrink-0 flex-col border-e border-line bg-panel/70 backdrop-blur md:flex">
+        {sidebarInner}
+      </aside>
 
-          {/* mobile drawer */}
-          {mobileSide && (
-            <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
-              <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={() => setMobileSide(false)} />
-              <aside className="drawer-in absolute inset-y-0 start-0 flex w-[280px] max-w-[85vw] flex-col border-e border-line bg-panel">
-                {sidebarInner}
-              </aside>
-            </div>
-          )}
-        </>
+      {/* mobile drawer (backdrop closes it) */}
+      {mobileSide && (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+          <div className="backdrop-in absolute inset-0 bg-ink/70" onClick={() => setMobileSide(false)} />
+          <aside className="drawer-in absolute inset-y-0 start-0 flex w-[280px] max-w-[85vw] flex-col border-e border-line bg-panel">
+            {sidebarInner}
+          </aside>
+        </div>
       )}
 
       {/* ---------- main ---------- */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[54px] min-w-0 shrink-0 items-center gap-1.5 px-2 sm:px-3.5">
-          {mode !== "translate" && (
-            <button
-              onClick={() => setMobileSide(true)}
-              className="icon-btn md:hidden"
-              title={t("nav.openMenu")}
-              aria-label={t("nav.openMenu")}
-            >
-              <PanelLeftIcon className="h-4.5 w-4.5" />
-            </button>
-          )}
-          {mode === "translate" && (
-            <button
-              onClick={() => {
-                setMode("chat");
-                setMobileSide(false);
-              }}
-              className="icon-btn"
-              title={t("nav.openMenu")}
-              aria-label={t("nav.openMenu")}
-            >
-              <PanelLeftIcon className="h-4.5 w-4.5" />
-            </button>
-          )}
+          <button
+            onClick={() => setMobileSide(true)}
+            className="icon-btn md:hidden"
+            title={t("nav.openMenu")}
+            aria-label={t("nav.openMenu")}
+          >
+            <PanelLeftIcon className="h-4.5 w-4.5" />
+          </button>
 
           <ModelPicker
             modelId={modelId}
@@ -609,16 +473,7 @@ export default function App() {
             onRefreshAll={refreshAll}
           />
 
-          {/* wallet + wearables + privacy */}
           <div className="ms-auto flex items-center gap-1.5">
-            <button
-              onClick={() => setMode("interpreters")}
-              className="flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-2.5 py-1.5 font-mono text-[11.5px] font-bold text-gold transition-all hover:bg-gold/15"
-              title={t("nav.interpreters")}
-            >
-              <BoltIcon className="h-3.5 w-3.5" />
-              {fmtAide(wallet.balance)}
-            </button>
             <button
               onClick={() => setShowWearables(true)}
               className="icon-btn"
@@ -634,6 +489,14 @@ export default function App() {
               aria-label={t("privacy.title")}
             >
               <KeyIcon className="h-4.5 w-4.5" />
+            </button>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="icon-btn"
+              title={t("nav.settings")}
+              aria-label={t("nav.settings")}
+            >
+              <GearIcon className="h-4.5 w-4.5" />
             </button>
           </div>
 
@@ -670,26 +533,27 @@ export default function App() {
                 catalog={catalog}
                 modelId={modelId}
                 onModel={setModelId}
-                onRefresh={refreshProvider}
-                onRefreshAll={refreshAll}
               />
             )
           ) : mode === "translate" ? (
             <TranslatorMode cfgs={cfgs} catalog={catalog} modelId={modelId} />
           ) : (
-            identity && (
-              <InterpretersMode
-                wallet={wallet}
-                setWallet={setWallet}
-                did={identity.did}
-              />
-            )
+            <InterpretersMode
+              wallet={wallet}
+              setWallet={setWallet}
+              did={identity.did}
+              onOpenWallet={() => setShowWallet(true)}
+            />
           )}
         </div>
       </div>
 
+      {/* ---------- overlays ---------- */}
       {showWearables && <WearablesPanel onClose={() => setShowWearables(false)} />}
       {showPrivacy && <TransparencyPanel onClose={() => setShowPrivacy(false)} />}
+      {showWallet && identity && (
+        <WalletPanel wallet={wallet} setWallet={setWallet} did={identity.did} onClose={() => setShowWallet(false)} />
+      )}
 
       {showSettings && (
         <SettingsModal
@@ -705,7 +569,7 @@ export default function App() {
 
       {/* delete / sign-out confirmation */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="backdrop-in absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
           <div className="anim-rise relative w-full max-w-[360px] rounded-2xl border border-line2 bg-panel p-5 shadow-2xl">
             <h3 className="text-[16px] font-extrabold text-text">{t("confirm.deleteTitle")}</h3>
@@ -758,6 +622,12 @@ function SettingsModal({
   const { t } = useI18n();
   const [testState, setTestState] = useState<Record<string, "idle" | "busy" | "ok" | "fail">>({});
 
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
   async function test(id: string) {
     setTestState((s) => ({ ...s, [id]: "busy" }));
     try {
@@ -769,25 +639,25 @@ function SettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="backdrop-in absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="anim-rise relative flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-line2 bg-panel shadow-[0_30px_90px_-20px_rgba(0,0,0,0.8)]">
-        <div className="flex items-center gap-3 border-b border-line px-4 py-3.5 sm:px-5">
-          <KeyIcon className="h-4.5 w-4.5 text-violet3" />
-          <div className="min-w-0">
-            <h2 className="font-display text-[15px] font-bold">{t("settings.title")}</h2>
-            <p className="truncate font-mono text-[10.5px] text-faint">{t("settings.sub")}</p>
+      <div className="anim-rise relative flex max-h-[88vh] w-full max-w-[640px] flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-2xl">
+        <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+          <GearIcon className="h-4.5 w-4.5 text-violet2" />
+          <div>
+            <h2 className="font-display text-[15px] font-bold">{t("nav.settings")}</h2>
+            <p className="font-mono text-[10.5px] text-faint">{t("settings.sub")}</p>
           </div>
           <button onClick={onClose} className="icon-btn ms-auto" title={t("common.close")} aria-label={t("common.close")}>
-            <XIcon className="h-4 w-4" />
+            <XIcon />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {/* appearance */}
-          <section className="mb-5 rounded-xl border border-line bg-panel2/60 p-3.5">
-            <p className="overline mb-2.5">{t("ui.appearance")}</p>
-            <div className="flex flex-wrap items-center gap-2">
+          <section className="mb-5">
+            <p className="overline mb-2">{t("ui.appearance")}</p>
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-panel2/70 px-4 py-3">
               <span className="text-[12.5px] font-bold text-dim">{t("ui.theme")}</span>
               <ThemeToggle mode={theme.mode} setMode={theme.setMode} />
               <span className="ms-2 text-[12.5px] font-bold text-dim">{t("ui.language")}</span>
@@ -803,28 +673,24 @@ function SettingsModal({
                   const cfg = cfgs[p.id] ?? { key: "", baseUrl: p.baseUrl };
                   const st = testState[p.id] ?? "idle";
                   const hasKey = !!cfg.key?.trim();
-                  const liveCount = catalog[p.id]?.models?.length ?? 0;
+                  const nModels = catalog[p.id]?.models?.length ?? 0;
                   return (
-                    <div key={p.id} className="rounded-xl border border-line bg-panel2/70 p-3 transition-colors hover:border-line2">
+                    <div key={p.id} className="rounded-2xl border border-line bg-panel2/70 p-3 transition-colors hover:border-line2">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.accent }} />
-                        <span className="text-[13.5px] font-bold">{p.name}</span>
+                        <span className="text-[13.5px] font-extrabold">{p.name}</span>
                         {p.keyless ? (
-                          <span className="flex items-center gap-1 rounded-full border border-violet/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-violet3">
-                            <CheckIcon className="h-2.5 w-2.5" /> {t("settings.keyless")}
+                          <span className="flex items-center gap-1 rounded-full border border-mint/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-mint">
+                            <CheckIcon className="h-2.5 w-2.5" /> {t("picker.keyless")}
                           </span>
                         ) : hasKey ? (
                           <span className="flex items-center gap-1 rounded-full border border-mint/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-mint">
-                            <CheckIcon className="h-2.5 w-2.5" /> {t("settings.keySet")}
-                          </span>
-                        ) : p.local ? (
-                          <span className="rounded-full border border-cyanic/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-cyanic">
-                            {t("settings.local")}
+                            <CheckIcon className="h-2.5 w-2.5" /> key
                           </span>
                         ) : null}
-                        {liveCount > 0 && (
-                          <span className="rounded-full bg-panel3 px-2 py-0.5 font-mono text-[9px] text-mint">
-                            {liveCount} {t("settings.models")}
+                        {nModels > 0 && (
+                          <span className="rounded-full bg-panel3 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-violet3">
+                            {nModels} {t("picker.models")}
                           </span>
                         )}
                         <a
@@ -833,43 +699,41 @@ function SettingsModal({
                           rel="noreferrer"
                           className="ms-auto font-mono text-[10px] text-faint underline decoration-line2 underline-offset-2 transition-colors hover:text-violet3"
                         >
-                          {p.keyUrl ? t("settings.getKey") : t("settings.docs")}
+                          {p.keyUrl ? t("settings.getKey") : "docs"}
                         </a>
                         <button
                           onClick={() => test(p.id)}
                           disabled={st === "busy"}
                           className="rounded-lg border border-line px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-dim transition-all hover:border-violet/50 hover:text-violet3 disabled:opacity-50"
                         >
-                          {st === "busy" ? t("settings.ping") : st === "ok" ? t("settings.ok") : st === "fail" ? t("settings.fail") : t("settings.test")}
+                          {st === "busy" ? "ping…" : st === "ok" ? "✓ ok" : st === "fail" ? "✕ fail" : "test"}
                         </button>
                       </div>
                       <p className="mt-1 text-[11.5px] leading-snug text-faint">{p.note}</p>
-                      {!p.keyless && (
-                        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                          {!p.local && (
-                            <input
-                              type="password"
-                              value={cfg.key}
-                              onChange={(e) => {
-                                onCfgs({ ...cfgs, [p.id]: { ...cfg, key: e.target.value } });
-                                onKeyChanged(p.id);
-                              }}
-                              placeholder={p.keyName ?? "API key"}
-                              className="field flex-1 font-mono text-[12px]"
-                              autoComplete="off"
-                            />
-                          )}
+                      <div className="mt-2 flex gap-2">
+                        {!p.keyless && !p.local && (
                           <input
-                            value={cfg.baseUrl}
+                            type="password"
+                            value={cfg.key}
                             onChange={(e) => {
-                              onCfgs({ ...cfgs, [p.id]: { ...cfg, baseUrl: e.target.value } });
+                              onCfgs({ ...cfgs, [p.id]: { ...cfg, key: e.target.value } });
                               onKeyChanged(p.id);
                             }}
-                            className={`field font-mono text-[11px] ltr-keep ${p.local ? "flex-1" : "sm:w-[220px]"}`}
-                            title="Base URL"
+                            placeholder={p.keyName ?? "API key"}
+                            className="field field-mono min-w-0 flex-1 text-[12px]"
+                            autoComplete="off"
                           />
-                        </div>
-                      )}
+                        )}
+                        <input
+                          value={cfg.baseUrl}
+                          onChange={(e) => {
+                            onCfgs({ ...cfgs, [p.id]: { ...cfg, baseUrl: e.target.value } });
+                            onKeyChanged(p.id);
+                          }}
+                          className={`field field-mono min-w-0 text-[11px] ${p.local ? "flex-1" : "w-[200px] max-sm:hidden"}`}
+                          title="Base URL"
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -878,9 +742,7 @@ function SettingsModal({
           ))}
         </div>
 
-        <div className="border-t border-line px-4 py-3 sm:px-5">
-          <p className="font-mono text-[10.5px] text-faint">{t("settings.note")}</p>
-        </div>
+        <p className="border-t border-line px-5 py-3 text-center font-mono text-[10.5px] text-faint">{t("settings.note")}</p>
       </div>
     </div>
   );

@@ -13,21 +13,12 @@ function inline(text: string, keyBase: string): ReactNode[] {
     if (m.index > last) parts.push(text.slice(last, m.index));
     const tok = m[0];
     const k = `${keyBase}-${i++}`;
-    if (tok.startsWith("`")) {
-      parts.push(<code key={k}>{tok.slice(1, -1)}</code>);
-    } else if (tok.startsWith("**")) {
-      parts.push(<strong key={k}>{tok.slice(2, -2)}</strong>);
-    } else if (tok.startsWith("[")) {
+    if (tok.startsWith("`")) parts.push(<code key={k}>{tok.slice(1, -1)}</code>);
+    else if (tok.startsWith("**")) parts.push(<strong key={k}>{tok.slice(2, -2)}</strong>);
+    else if (tok.startsWith("[")) {
       const mm = /\[([^\]]+)\]\(([^)]+)\)/.exec(tok);
-      if (mm)
-        parts.push(
-          <a key={k} href={mm[2]} target="_blank" rel="noreferrer">
-            {mm[1]}
-          </a>
-        );
-    } else {
-      parts.push(<em key={k}>{tok.slice(1, -1)}</em>);
-    }
+      if (mm) parts.push(<a key={k} href={mm[2]} target="_blank" rel="noreferrer">{mm[1]}</a>);
+    } else parts.push(<em key={k}>{tok.slice(1, -1)}</em>);
     last = m.index + tok.length;
   }
   if (last < text.length) parts.push(text.slice(last));
@@ -72,23 +63,11 @@ function textBlock(block: string, keyBase: string): ReactNode {
   };
   const flushList = () => {
     if (list.length) {
-      out.push(
-        <ul key={`${keyBase}-ul${li++}`}>
-          {list.map((l, j) => (
-            <li key={j}>{inline(l, `${keyBase}-li${li}-${j}`)}</li>
-          ))}
-        </ul>
-      );
+      out.push(<ul key={`${keyBase}-ul${li++}`}>{list.map((l, j) => <li key={j}>{inline(l, `${keyBase}-li${li}-${j}`)}</li>)}</ul>);
       list = [];
     }
     if (ordered.length) {
-      out.push(
-        <ol key={`${keyBase}-ol${li++}`}>
-          {ordered.map((l, j) => (
-            <li key={j}>{inline(l, `${keyBase}-oi${li}-${j}`)}</li>
-          ))}
-        </ol>
-      );
+      out.push(<ol key={`${keyBase}-ol${li++}`}>{ordered.map((l, j) => <li key={j}>{inline(l, `${keyBase}-oi${li}-${j}`)}</li>)}</ol>);
       ordered = [];
     }
   };
@@ -96,12 +75,10 @@ function textBlock(block: string, keyBase: string): ReactNode {
   for (const raw of lines) {
     const t = raw.trimEnd().trim();
     if (/^#{1,3}\s/.test(t)) {
-      flushPara();
-      flushList();
+      flushPara(); flushList();
       const lvl = (t.match(/^#+/) || ["#"])[0].length;
-      const txt = t.replace(/^#+\s*/, "");
       const H = lvl === 1 ? "h1" : lvl === 2 ? "h2" : "h3";
-      out.push(<H key={`${keyBase}-h${li++}`}>{inline(txt, `${keyBase}-h${li}`)}</H>);
+      out.push(<H key={`${keyBase}-h${li++}`}>{inline(t.replace(/^#+\s*/, ""), `${keyBase}-h${li}`)}</H>);
     } else if (/^[-*]\s+/.test(t)) {
       flushPara();
       list.push(t.replace(/^[-*]\s+/, ""));
@@ -109,23 +86,19 @@ function textBlock(block: string, keyBase: string): ReactNode {
       flushPara();
       ordered.push(t.replace(/^\d+[.)]\s+/, ""));
     } else if (/^>\s?/.test(t)) {
-      flushPara();
-      flushList();
+      flushPara(); flushList();
       out.push(<blockquote key={`${keyBase}-q${li++}`}>{inline(t.replace(/^>\s?/, ""), `${keyBase}-q${li}`)}</blockquote>);
     } else if (/^(-{3,}|\*{3,})$/.test(t)) {
-      flushPara();
-      flushList();
+      flushPara(); flushList();
       out.push(<hr key={`${keyBase}-hr${li++}`} />);
     } else if (t === "") {
-      flushPara();
-      flushList();
+      flushPara(); flushList();
     } else {
       flushList();
       para.push(t);
     }
   }
-  flushPara();
-  flushList();
+  flushPara(); flushList();
   return <>{out}</>;
 }
 

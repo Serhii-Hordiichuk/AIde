@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  createIdentity, importIdentity, identityBackup, shortDid,
-  type Identity,
-} from "../lib/did";
+import { createIdentity, importIdentity, identityBackup, shortDid, type Identity } from "../lib/did";
 import { BrandMark, Wordmark, CheckIcon, CopyIcon, KeyIcon, BoltIcon, Seal, Tryzub } from "./Icons";
 import { ThemeToggle, LangPicker } from "./Appearance";
 import { useI18n } from "../lib/i18n";
@@ -27,7 +24,7 @@ export default function AuthGate({
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [importText, setImportText] = useState("");
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState<"did" | null>(null);
+  const [copied, setCopied] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   const GEN_STEPS = [t("auth.gen1"), t("auth.gen2"), t("auth.gen3"), t("auth.gen4")];
@@ -72,8 +69,8 @@ export default function AuthGate({
 
   async function copy(text: string) {
     await navigator.clipboard?.writeText(text).catch(() => {});
-    setCopied("did");
-    setTimeout(() => setCopied(null), 1300);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1300);
   }
 
   return (
@@ -99,7 +96,6 @@ export default function AuthGate({
           </button>
         )}
 
-        {/* brand */}
         <div className="mb-6 flex items-center gap-3">
           <span className="floaty">
             <BrandMark className="h-11 w-11 drop-shadow-[0_0_22px_color-mix(in_srgb,var(--t-violet)_45%,transparent)]" />
@@ -110,9 +106,7 @@ export default function AuthGate({
               {lang === "zh" && <Seal ch="智" className="h-8 w-8 text-[15px]" />}
               {lang === "uk" && <Tryzub className="h-8 w-8" />}
             </div>
-            <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.22em] text-faint">
-              {t("app.tagline")}
-            </p>
+            <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.22em] text-faint">{t("app.tagline")}</p>
           </div>
         </div>
 
@@ -171,11 +165,7 @@ export default function AuthGate({
                   >
                     {t("auth.back")}
                   </button>
-                  <button
-                    onClick={restore}
-                    disabled={!importText.trim()}
-                    className="btn-brand flex-1 rounded-xl py-2.5 text-[13px] font-extrabold disabled:opacity-35"
-                  >
+                  <button onClick={restore} disabled={!importText.trim()} className="btn-brand flex-1 rounded-xl py-2.5 text-[13px] font-extrabold disabled:opacity-35">
                     {t("auth.verify")}
                   </button>
                 </div>

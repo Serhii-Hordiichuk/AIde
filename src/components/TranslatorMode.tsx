@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getModelInfo, isAutoModel, resolveAutoModel } from "../data/models";
+import { getModelInfo, isAutoModel, resolveAutoModel, type ModelInfo } from "../data/models";
 import { providerById, PROVIDERS } from "../data/providers";
 import type { ProviderCfg } from "../lib/store";
 import type { LiveCatalog } from "../lib/modelFetch";
@@ -29,7 +29,7 @@ function freshOf(catalog: LiveCatalog): Record<string, string[]> {
 }
 
 export default function TranslatorMode({ cfgs, catalog, modelId }: Props) {
-  const { t: tr } = useI18n();
+  const { t } = useI18n();
   const model = isAutoModel(modelId) ? resolveAutoModel(modelId, cfgs, freshOf(catalog)) : getModelInfo(modelId);
   const provider = providerById.get(model.providerId) ?? PROVIDERS[0];
   const cfg = cfgs[model.providerId] ?? { key: "", baseUrl: provider.baseUrl };
@@ -38,13 +38,12 @@ export default function TranslatorMode({ cfgs, catalog, modelId }: Props) {
 
   return (
     <div className="mx-auto flex h-full w-full max-w-[920px] flex-col px-3 py-4 sm:px-5 sm:py-5">
-      {/* tabs + tagline */}
       <div className="flex flex-wrap items-center gap-1">
         {(
           [
-            { id: "text", label: tr("tr.text"), icon: GlobeIcon },
-            { id: "convo", label: tr("tr.live"), icon: MicIcon },
-            { id: "doc", label: tr("tr.docs"), icon: FileTextIcon },
+            { id: "text", label: t("tr.text"), icon: GlobeIcon },
+            { id: "convo", label: t("tr.live"), icon: MicIcon },
+            { id: "doc", label: t("tr.docs"), icon: FileTextIcon },
           ] as const
         ).map((tb) => (
           <button
@@ -61,7 +60,7 @@ export default function TranslatorMode({ cfgs, catalog, modelId }: Props) {
             {tb.label}
           </button>
         ))}
-        <span className="ms-auto hidden font-mono text-[10px] text-faint lg:inline">{tr("tr.tagline")}</span>
+        <span className="ms-auto hidden font-mono text-[10px] text-faint lg:inline">{t("tr.tagline")}</span>
       </div>
 
       <div className="mt-4 min-h-0 flex-1">
@@ -143,13 +142,12 @@ function LangSelect({
                     setOpen(false);
                     setQ("");
                   }}
-                  className={`flex w-full items-center gap-2 px-3.5 py-2 text-start text-[13px] transition-colors ${
-                    value === l.code && !withAuto ? "font-bold text-violet3" : "text-dim hover:bg-panel2"
+                  className={`flex w-full items-center justify-between gap-2 px-3.5 py-2 text-start text-[13px] transition-colors ${
+                    value === l.code ? "font-bold text-violet3" : "text-dim hover:bg-panel2"
                   }`}
                 >
-                  <span className="flex-1 truncate">{l.native}</span>
-                  <span className="font-mono text-[10px] text-faint">{l.name}</span>
-                  {value === l.code && !withAuto && <CheckIcon className="h-3.5 w-3.5" />}
+                  <span>{l.native}</span>
+                  <span className="font-mono text-[10px] text-faint">{l.code}</span>
                 </button>
               ))}
             </div>
@@ -162,7 +160,7 @@ function LangSelect({
 
 /* ---------------- text panel ---------------- */
 
-function TextPanel({ model, provider, cfg }: { model: ReturnType<typeof getModelInfo>; provider: (typeof PROVIDERS)[number]; cfg: ProviderCfg }) {
+function TextPanel({ model, provider, cfg }: { model: ModelInfo; provider: (typeof PROVIDERS)[number]; cfg: ProviderCfg }) {
   const { t } = useI18n();
   const [src, setSrc] = useState("auto");
   const [tgt, setTgt] = useState("uk");
@@ -170,10 +168,10 @@ function TextPanel({ model, provider, cfg }: { model: ReturnType<typeof getModel
   const [out, setOut] = useState("");
   const [detected, setDetected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
-  const acRef = useRef<AbortController | null>(null);
+  const [speaking, setSpeaking] = useState(false);
   const timerRef = useRef<number>(0);
+  const acRef = useRef<AbortController | null>(null);
 
   useEffect(() => () => acRef.current?.abort(), []);
 
@@ -208,7 +206,7 @@ function TextPanel({ model, provider, cfg }: { model: ReturnType<typeof getModel
   };
 
   const swap = () => {
-    const newSrc = src === "auto" ? (detected ?? "en") : src;
+    const newSrc = src === "auto" ? detected ?? "en" : src;
     if (tgt === newSrc) return;
     setSrc(tgt);
     setTgt(newSrc);
@@ -223,12 +221,7 @@ function TextPanel({ model, provider, cfg }: { model: ReturnType<typeof getModel
     <div className="flex h-full flex-col">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <LangSelect value={src} onChange={(v) => { setSrc(v); if (input.trim()) run(input, tgt); }} withAuto label={t("tr.from")} />
-        <button
-          onClick={swap}
-          className="icon-btn border border-line"
-          title={t("tr.swap")}
-          aria-label={t("tr.swap")}
-        >
+        <button onClick={swap} className="icon-btn border border-line" title={t("tr.swap")} aria-label={t("tr.swap")}>
           <SwapIcon className="h-4 w-4" />
         </button>
         <LangSelect value={tgt} onChange={(v) => { setTgt(v); if (input.trim()) run(input, v); }} label={t("tr.to")} accent="border-cyanic/40" />
@@ -316,10 +309,11 @@ interface Turn {
   tr: string;
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const SR: any =
   (typeof window !== "undefined" && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)) || null;
 
-function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getModelInfo>; provider: (typeof PROVIDERS)[number]; cfg: ProviderCfg }) {
+function ConvoPanel({ model, provider, cfg }: { model: ModelInfo; provider: (typeof PROVIDERS)[number]; cfg: ProviderCfg }) {
   const { t } = useI18n();
   const [pair, setPair] = useState({ a: "en", b: "uk" });
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -330,6 +324,8 @@ function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getMode
   const recRef = useRef<any>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(1);
+  const transcriptRef = useRef("");
+  transcriptRef.current = transcript;
 
   useEffect(() => {
     const el = feedRef.current;
@@ -339,6 +335,23 @@ function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getMode
   useEffect(() => () => recRef.current?.stop?.(), []);
 
   const swap = () => setPair((p) => ({ a: p.b, b: p.a }));
+
+  async function finalize(side: "A" | "B", text: string) {
+    const srcLang = side === "A" ? pair.a : pair.b;
+    const tgtLang = side === "A" ? pair.b : pair.a;
+    setTranslatingSide(side);
+    try {
+      const tr = await translateWithSource(text, srcLang, tgtLang, model, provider, cfg);
+      const turn: Turn = { id: idRef.current++, side, srcLang, text, tr };
+      setTurns((ts) => [...ts, turn]);
+      setSpeakingTurn(turn.id);
+      speakText(tr, tgtLang, { onEnd: () => setSpeakingTurn(null) });
+    } catch (e) {
+      setTurns((ts) => [...ts, { id: idRef.current++, side, srcLang, text, tr: "⚠ " + (e instanceof Error ? e.message : String(e)).slice(0, 140) }]);
+    } finally {
+      setTranslatingSide(null);
+    }
+  }
 
   const hold = (side: "A" | "B") => {
     if (!SR || listening) return;
@@ -362,7 +375,7 @@ function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getMode
     };
     rec.onend = () => {
       setListening(null);
-      const text = (finalText || "").trim() || transcriptRefHack.current.trim();
+      const text = (finalText || "").trim() || transcriptRef.current.trim();
       setTranscript("");
       if (text) void finalize(side, text);
     };
@@ -373,10 +386,6 @@ function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getMode
     rec.start();
   };
 
-  /* keep latest transcript for onend fallback */
-  const transcriptRefHack = useRef("");
-  transcriptRefHack.current = transcript;
-
   const release = () => {
     try {
       recRef.current?.stop?.();
@@ -384,24 +393,6 @@ function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getMode
       /* already stopped */
     }
   };
-
-  async function finalize(side: "A" | "B", text: string) {
-    const srcLang = side === "A" ? pair.a : pair.b;
-    const tgtLang = side === "A" ? pair.b : pair.a;
-    setTranslatingSide(side);
-    try {
-      const tr = await translateWithSource(text, srcLang, tgtLang, model, provider, cfg);
-      const turn: Turn = { id: idRef.current++, side, srcLang, text, tr };
-      setTurns((ts) => [...ts, turn]);
-      /* voice it to the other side */
-      setSpeakingTurn(turn.id);
-      speakText(tr, tgtLang, { onEnd: () => setSpeakingTurn(null) });
-    } catch (e) {
-      setTurns((ts) => [...ts, { id: idRef.current++, side, srcLang, text, tr: "⚠ " + (e instanceof Error ? e.message : String(e)).slice(0, 140) }]);
-    } finally {
-      setTranslatingSide(null);
-    }
-  }
 
   const copyTranscript = () => {
     const doc = turns
@@ -419,7 +410,6 @@ function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getMode
 
   return (
     <div className="flex h-full flex-col">
-      {/* pair bar */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <LangSelect value={pair.a} onChange={(v) => setPair((p) => ({ ...p, a: v }))} label="Side A" accent="border-cyanic/40" />
         <button onClick={swap} className="icon-btn border border-line" title={t("tr.swap")} aria-label={t("tr.swap")}>
@@ -445,11 +435,8 @@ function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getMode
         )}
       </div>
 
-      {!SR && (
-        <p className="mb-3 rounded-xl border border-gold/35 bg-gold/8 px-3.5 py-2.5 text-[12.5px] text-gold">{t("tr.noMic")}</p>
-      )}
+      {!SR && <p className="mb-3 rounded-xl border border-gold/35 bg-gold/8 px-3.5 py-2.5 text-[12.5px] text-gold">{t("tr.noMic")}</p>}
 
-      {/* feed */}
       <div ref={feedRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl border border-line bg-panel/60 p-3 sm:p-4">
         {turns.length === 0 && !listening && (
           <p className="pt-8 text-center text-[13px] text-faint">{t("tr.liveEmpty")}</p>
@@ -505,7 +492,6 @@ function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getMode
         )}
       </div>
 
-      {/* hold-to-talk buttons */}
       <div className="mt-3 grid grid-cols-2 gap-3 pb-1">
         {(["A", "B"] as const).map((side) => {
           const active = listening === side;
@@ -543,7 +529,7 @@ function ConvoPanel({ model, provider, cfg }: { model: ReturnType<typeof getMode
 
 /* ---------------- documents panel ---------------- */
 
-function DocPanel({ model, provider, cfg }: { model: ReturnType<typeof getModelInfo>; provider: (typeof PROVIDERS)[number]; cfg: ProviderCfg }) {
+function DocPanel({ model, provider, cfg }: { model: ModelInfo; provider: (typeof PROVIDERS)[number]; cfg: ProviderCfg }) {
   const { t } = useI18n();
   const [src, setSrc] = useState("auto");
   const [tgt, setTgt] = useState("en");
@@ -570,8 +556,11 @@ function DocPanel({ model, provider, cfg }: { model: ReturnType<typeof getModelI
   };
 
   const run = async () => {
-    if (!doc.trim() || progress) return;
-    acRef.current?.abort();
+    if (!doc.trim()) return;
+    if (progress) {
+      acRef.current?.abort();
+      return;
+    }
     const ac = new AbortController();
     acRef.current = ac;
     const parts = chunk(doc);
@@ -629,15 +618,15 @@ function DocPanel({ model, provider, cfg }: { model: ReturnType<typeof getModelI
               >
                 {copied ? <CheckIcon className="h-3.5 w-3.5 text-mint" /> : <CopyIcon className="h-3.5 w-3.5" />}
               </button>
-              <button onClick={download} className="icon-btn" title="Download .txt">
+              <button onClick={download} className="icon-btn" title=".txt">
                 <DownloadIcon className="h-3.5 w-3.5" />
               </button>
             </>
           )}
           <button
-            onClick={run}
-            disabled={!doc.trim() || !!progress}
-            className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-[12.5px] font-extrabold disabled:opacity-35"
+            onClick={() => void run()}
+            disabled={!doc.trim()}
+            className={`btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-[12.5px] font-extrabold disabled:opacity-35 ${progress ? "opacity-90" : ""}`}
           >
             {progress ? (
               <>

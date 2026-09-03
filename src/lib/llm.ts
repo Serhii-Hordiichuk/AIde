@@ -1,54 +1,189 @@
+import type { ModelInfo } from "../data/models";
 import type { ProviderInfo } from "../data/providers";
-import type { ModelInfo, Cfg } from "../data/models";
+import type { ProviderCfg } from "./store";
 import type { GenParams } from "./store";
 
 export class NoKeyError extends Error {
-  constructor(public providerName: string) {
-    super(`No API key set for ${providerName}.`);
+  constructor(provider: string) {
+    super(`${provider} requires a free API key`);
   }
 }
 
-export interface ChatMessageLike {
-  role: string;
-  content: string;
-}
-
-export interface StreamOpts {
+export interface ChatReq {
   model: ModelInfo;
   provider: ProviderInfo;
-  cfg: Cfg;
-  messages: ChatMessageLike[];
+  cfg: ProviderCfg;
+  messages: { role: "system" | "user" | "assistant"; content: string }[];
   params: GenParams;
   signal?: AbortSignal;
 }
 
-function baseOf(cfg: Cfg, provider: ProviderInfo): string {
-  return (cfg.baseUrl?.trim() || provider.baseUrl).replace(/\/+$/, "");
+const base = (cfg: ProviderCfg, p: ProviderInfo) => (cfg.baseUrl?.trim() || p.baseUrl).replace(/\/+$/, "");
+
+function headers(p: ProviderInfo, cfg: ProviderCfg, json = true): Record<string, string> {
+  const h: Record<string, string> = {};
+  if (json) h["Content-Type"] = "application/json";
+  const key = cfg.key?.trim();
+  if (key) {
+    h["Authorization"] = `Bearer ${key}`;
+    if (p.id === "anthropic") {
+      h["x-api-key"] = key;
+      h["anthropic-version"] = "2023-06-01";
+    }
+    if (p.id === "huggingface") h["x-api-key"] = key;
+  }
+  return h;
 }
 
-async function* readSse(res: Response, extract: (json: any) => string | undefined, signal?: AbortSignal): AsyncGenerator<string> {
-  const reader = res.body!.getReader();
+/* Anthropic Messages API (SSE) */
+async function* anthropicStream(req: ChatReq): AsyncGenerator<string> {
+  const { provider: p, cfg, messages, params } = req;
+  const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+  const rest = messages.filter((m) => m.role !== "system");
+  const res = await fetch(`${base(cfg, p)}/messages`, {
+    method: "POST",
+    headers: headers(p, cfg),
+    body: JSON.stringify({
+      model: req.model.apiId,
+      max_tokens: params.maxTokens,
+      temperature: params.temperature,
+      top_p: params.topP,
+      ...(system ? { system } : {}),
+      stream: true,
+      messages: rest.map((m) => ({ role: m.role, content: m.content })),
+    }),
+    signal: req.signal,
+  });
+  if (!res.ok || !res.body) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = await res.json();
+      msg = j?.error?.message ?? msg;
+    } catch { /* keep */ }
+    throw new Error(`${p.name} responded ${msg}`);
+  }
+  yield* sseDeltaStream(res.body, (data) => {
+    const j = JSON.parse(data);
+    if (j.type === "content_block_delta" && j.delta?.type === "text_delta") return j.delta.text ?? "";
+    return "";
+  });
+}
+
+/* Google streamGenerateContent (SSE) */
+async function* googleStream(req: ChatReq): AsyncGenerator<string> {
+  const { provider: p, cfg, messages, params } = req;
+  const key = cfg.key?.trim();
+  if (!key) throw new NoKeyError(p.name);
+  const sys = messages.find((m) => m.role === "system");
+  const contents = messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+  const url = `${base(cfg, p)}/models/${req.model.apiId}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: headers(p, cfg),
+    body: JSON.stringify({
+      contents,
+      ...(sys ? { systemInstruction: { parts: [{ text: sys.content }] } } : {}),
+      generationConfig: {
+        temperature: params.temperature,
+        topP: params.topP,
+        maxOutputTokens: params.maxTokens,
+      },
+    }),
+    signal: req.signal,
+  });
+  if (!res.ok || !res.body) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = await res.json();
+      msg = j?.error?.message ?? msg;
+    } catch { /* keep */ }
+    throw new Error(`${p.name} responded ${msg}`);
+  }
+  yield* sseDeltaStream(res.body, (data) => {
+    const j = JSON.parse(data);
+    return j?.candidates?.[0]?.content?.parts?.map((pt: { text?: string }) => pt.text ?? "").join("") ?? "";
+  });
+}
+
+/* Pollinations — keyless, OpenAI-compatible */
+async function* pollinationsStream(req: ChatReq): AsyncGenerator<string> {
+  const { provider: p, cfg, messages, params } = req;
+  const res = await fetch(`${base(cfg, p)}/openai`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: req.model.apiId || "openai",
+      messages,
+      temperature: params.temperature,
+      top_p: params.topP,
+      max_tokens: params.maxTokens,
+      stream: true,
+    }),
+    signal: req.signal,
+  });
+  if (!res.ok || !res.body) {
+    if (res.status === 404) throw new Error(`${p.name}: endpoint unavailable (404)`);
+    throw new Error(`${p.name} responded HTTP ${res.status}`);
+  }
+  yield* sseDeltaStream(res.body, (data) => {
+    const j = JSON.parse(data);
+    return j?.choices?.[0]?.delta?.content ?? "";
+  });
+}
+
+/* OpenAI-compatible: OpenRouter, Groq, Cerebras, SambaNova, HF, local runtimes… */
+async function* openaiCompatStream(req: ChatReq): AsyncGenerator<string> {
+  const { provider: p, cfg, messages, params } = req;
+  if (!p.keyless && !cfg.key?.trim()) throw new NoKeyError(p.name);
+  const res = await fetch(`${base(cfg, p)}/chat/completions`, {
+    method: "POST",
+    headers: headers(p, cfg),
+    body: JSON.stringify({
+      model: req.model.apiId,
+      messages,
+      temperature: params.temperature,
+      top_p: params.topP,
+      max_tokens: params.maxTokens,
+      stream: true,
+    }),
+    signal: req.signal,
+  });
+  if (!res.ok || !res.body) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = await res.json();
+      msg = j?.error?.message ?? msg;
+    } catch { /* keep */ }
+    throw new Error(`${p.name} responded ${msg}`);
+  }
+  yield* sseDeltaStream(res.body, (data) => {
+    const j = JSON.parse(data);
+    return j?.choices?.[0]?.delta?.content ?? "";
+  });
+}
+
+async function* sseDeltaStream(body: ReadableStream<Uint8Array>, parse: (data: string) => string): AsyncGenerator<string> {
+  const reader = body.getReader();
   const dec = new TextDecoder();
   let buf = "";
   try {
     for (;;) {
-      if (signal?.aborted) break;
       const { done, value } = await reader.read();
       if (done) break;
       buf += dec.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop() ?? "";
-      for (const line of lines) {
-        const l = line.trim();
-        if (!l.startsWith("data:")) continue;
-        const payload = l.slice(5).trim();
-        if (payload === "[DONE]") return;
-        try {
-          const json = JSON.parse(payload);
-          const delta = extract(json);
-          if (delta) yield delta;
-        } catch {
-          /* skip malformed frame */
+      let idx: number;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 1);
+        if (line.startsWith("data:")) {
+          const data = line.slice(5).trim();
+          if (data === "[DONE]") return;
+          try {
+            const d = parse(data);
+            if (d) yield d;
+          } catch { /* skip malformed frame */ }
         }
       }
     }
@@ -57,83 +192,17 @@ async function* readSse(res: Response, extract: (json: any) => string | undefine
   }
 }
 
-/** Streams assistant tokens from any configured provider. No demo mode — real APIs only. */
-export async function* streamChat(opts: StreamOpts): AsyncGenerator<string> {
-  const { model, provider, cfg, messages, params, signal } = opts;
-  const key = cfg.key?.trim();
-
-  if (provider.id === "google") {
-    if (!key) throw new NoKeyError(provider.name);
-    const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
-    const contents = messages
-      .filter((m) => m.role !== "system")
-      .map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
-    const url = `${baseOf(cfg, provider)}/models/${encodeURIComponent(model.apiId)}:streamGenerateContent?key=${encodeURIComponent(
-      key
-    )}&alt=sse`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents,
-        ...(sys ? { systemInstruction: { parts: [{ text: sys }] } } : {}),
-        generationConfig: {
-          temperature: params.temperature,
-          topP: params.topP,
-          maxOutputTokens: params.maxTokens,
-        },
-      }),
-      signal,
-    });
-    if (!res.ok) throw new Error(`Google responded HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    yield* readSse(
-      res,
-      (j) => j?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") || undefined,
-      signal
-    );
-    return;
-  }
-
-  const isPplx = provider.id === "pollinations";
-  const isCloudflare = provider.id === "cloudflare";
-  const needsAuth = !provider.keyless && !provider.local;
-  if (needsAuth && !key) throw new NoKeyError(provider.name);
-
-  // Cloudflare AI Gateway needs an account-scoped path; keep the base as-is and let the user paste the full gateway URL.
-  const url = isPplx ? baseOf(cfg, provider) + "/openai" : baseOf(cfg, provider) + "/chat/completions";
-  void isCloudflare;
-
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (key) {
-    headers["Authorization"] = `Bearer ${key}`;
-    if (provider.id === "huggingface") headers["x-api-key"] = key;
-  }
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: model.apiId,
-      messages,
-      stream: true,
-      temperature: params.temperature,
-      top_p: params.topP,
-      max_tokens: params.maxTokens,
-    }),
-    signal,
-  });
-
-  if (!res.ok) {
-    const body = (await res.text()).slice(0, 300);
-    throw new Error(`${provider.name} responded HTTP ${res.status}: ${body}`);
-  }
-
-  yield* readSse(res, (j) => j?.choices?.[0]?.delta?.content ?? undefined, signal);
+export async function* streamChat(req: ChatReq): AsyncGenerator<string> {
+  const pid = req.provider.id;
+  if (pid === "anthropic") yield* anthropicStream(req);
+  else if (pid === "google") yield* googleStream(req);
+  else if (pid === "pollinations") yield* pollinationsStream(req);
+  else yield* openaiCompatStream(req);
 }
 
-/** Collects a full (non-streamed UX) completion into a string. */
-export async function complete(opts: StreamOpts): Promise<string> {
+/* Single non-streaming completion (used by the translator). */
+export async function complete(req: ChatReq): Promise<string> {
   let out = "";
-  for await (const d of streamChat(opts)) out += d;
+  for await (const d of streamChat(req)) out += d;
   return out.trim();
 }

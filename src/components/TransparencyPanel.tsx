@@ -1,21 +1,24 @@
+import { useEffect } from "react";
 import { useI18n } from "../lib/i18n";
-import { XIcon, CheckIcon, KeyIcon } from "./Icons";
+import { XIcon, CheckIcon, KeyIcon, TokenIcon } from "./Icons";
 
 interface Props {
   onClose: () => void;
 }
 
-/* Data & privacy ledger — the platform's plain-word contract with the user. */
 export default function TransparencyPanel({ onClose }: Props) {
   const { t } = useI18n();
 
-  const never = [t("privacy.never1"), t("privacy.never2"), t("privacy.never3")];
-  const you = [t("privacy.you1"), t("privacy.you2"), t("privacy.you3")];
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="backdrop-in absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="anim-rise relative flex max-h-[85vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-line2 bg-panel shadow-2xl">
+      <div className="anim-rise relative flex max-h-[86vh] w-full max-w-[560px] flex-col overflow-hidden rounded-3xl border border-line2 bg-panel shadow-2xl">
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
           <KeyIcon className="h-4.5 w-4.5 text-mint" />
           <div>
@@ -27,55 +30,42 @@ export default function TransparencyPanel({ onClose }: Props) {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
-          {/* private by default */}
-          <section className="corners relative rounded-2xl border border-mint/30 bg-mint/5 p-4">
-            <h3 className="text-[13.5px] font-extrabold text-mint">{t("privacy.privateTitle")}</h3>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-dim">{t("privacy.privateBody")}</p>
-          </section>
-
-          {/* guest contributions */}
-          <section className="corners relative rounded-2xl border border-gold/30 bg-gold/5 p-4">
-            <h3 className="text-[13.5px] font-extrabold text-gold">{t("privacy.guestTitle")}</h3>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-dim">{t("privacy.guestBody")}</p>
-          </section>
-
-          {/* living language research */}
-          <section className="corners relative rounded-2xl border border-violet/30 bg-violet/5 p-4">
-            <h3 className="text-[13.5px] font-extrabold text-violet2">{t("privacy.slangTitle")}</h3>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-dim">{t("privacy.slangBody")}</p>
-          </section>
-
-          {/* never / always */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-coral/30 bg-coral/5 p-4">
-              <h3 className="text-[13px] font-extrabold text-coral">{t("privacy.never")}</h3>
-              <ul className="mt-2 space-y-1.5">
-                {never.map((n) => (
-                  <li key={n} className="flex items-start gap-2 text-[12px] leading-snug text-dim">
-                    <XIcon className="mt-0.5 h-3 w-3 shrink-0 text-coral" />
-                    {n}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-2xl border border-mint/30 bg-mint/5 p-4">
-              <h3 className="text-[13px] font-extrabold text-mint">{t("privacy.you")}</h3>
-              <ul className="mt-2 space-y-1.5">
-                {you.map((y) => (
-                  <li key={y} className="flex items-start gap-2 text-[12px] leading-snug text-dim">
-                    <CheckIcon className="mt-0.5 h-3 w-3 shrink-0 text-mint" />
-                    {y}
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {/* guests */}
+          <div className="rounded-2xl border border-gold/30 bg-gold/6 p-4">
+            <span className="rounded-full border border-gold/40 bg-gold/10 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-gold">
+              {t("privacy.badgeGuest")}
+            </span>
+            <p className="mt-3 text-[13px] font-extrabold">{t("privacy.guest")}</p>
+            <ul className="mt-2 space-y-2">
+              {[t("privacy.reg1"), t("privacy.reg2"), t("privacy.reg3"), t("privacy.reg4")].map((p, i) => (
+                <li key={i} className="flex items-start gap-2 text-[12.5px] leading-relaxed text-dim">
+                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gold" />
+                  {p}
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
 
-        <div className="border-t border-line px-5 py-3">
-          <p className="text-center font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
-            aide · local-first · did:key
+          {/* registered */}
+          <div className="rounded-2xl border border-mint/35 bg-mint/6 p-4">
+            <span className="rounded-full border border-mint/45 bg-mint/12 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-mint">
+              {t("privacy.badgeReg")}
+            </span>
+            <p className="mt-3 text-[13px] font-extrabold">{t("privacy.audit")}</p>
+            <ul className="mt-2 space-y-2">
+              {[t("privacy.local"), t("privacy.ledger")].map((p, i) => (
+                <li key={i} className="flex items-start gap-2 text-[12.5px] leading-relaxed text-dim">
+                  <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-mint" />
+                  {p}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <p className="flex items-start gap-2.5 rounded-2xl border border-line bg-panel2/70 px-4 py-3.5 text-[12.5px] font-semibold leading-relaxed text-dim">
+            <TokenIcon className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+            {t("privacy.note")}
           </p>
         </div>
       </div>

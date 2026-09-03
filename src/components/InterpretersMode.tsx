@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../lib/i18n";
 import { credit, debit, fmtAide, type Wallet } from "../lib/wallet";
 import { LANGS, langName } from "../lib/languages";
-import { MicIcon, SpeakerIcon, CheckIcon, XIcon, BoltIcon, KeyIcon } from "./Icons";
+import { MicIcon, CheckIcon, XIcon, BoltIcon, KeyIcon, TokenIcon, SpeakerIcon } from "./Icons";
 
 export interface Interpreter {
   id: string;
@@ -28,9 +28,10 @@ interface Props {
   wallet: Wallet;
   setWallet: (w: Wallet) => void;
   did: string;
+  onOpenWallet: () => void;
 }
 
-export default function InterpretersMode({ wallet, setWallet, did }: Props) {
+export default function InterpretersMode({ wallet, setWallet, did, onOpenWallet }: Props) {
   const { t } = useI18n();
   const [tab, setTab] = useState<"market" | "session" | "earn">("market");
   const [active, setActive] = useState<Interpreter | null>(null);
@@ -40,9 +41,12 @@ export default function InterpretersMode({ wallet, setWallet, did }: Props) {
   const [surveyOpen, setSurveyOpen] = useState(false);
   const [lastSurvey, setLastSurvey] = useState<{ id: string; note: string } | null>(null);
 
-  useEffect(() => () => {
-    if (timerRef.current) window.clearInterval(timerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (timerRef.current) window.clearInterval(timerRef.current);
+    },
+    []
+  );
 
   function startSession(it: Interpreter) {
     setActive(it);
@@ -50,7 +54,7 @@ export default function InterpretersMode({ wallet, setWallet, did }: Props) {
     setTranscript([]);
     setTab("session");
     let e = 0;
-    const lines = sampleDialogue(it.pairs[0]);
+    const lines = sampleDialogue();
     timerRef.current = window.setInterval(() => {
       e += 1;
       setElapsed(e);
@@ -84,23 +88,25 @@ export default function InterpretersMode({ wallet, setWallet, did }: Props) {
   const insufficient = active ? wallet.balance < active.rate : false;
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-[980px] flex-col px-4 py-5">
-      {/* header + wallet */}
+    <div className="mx-auto flex h-full w-full max-w-[980px] flex-col px-3 py-4 sm:px-5 sm:py-5">
+      {/* header + wallet chip */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div>
-          <h1 className="font-display text-[22px] font-bold tracking-tight">{t("live.title")}</h1>
-          <p className="text-[13px] text-dim">{t("live.sub")}</p>
+          <h1 className="font-display text-[20px] font-bold tracking-tight sm:text-[22px]">{t("live.title")}</h1>
+          <p className="text-[12.5px] text-dim">{t("live.sub")}</p>
         </div>
-        <div className="ms-auto flex items-center gap-2">
-          <span className="flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1.5 font-mono text-[12px] font-bold text-gold">
-            <BoltIcon className="h-3.5 w-3.5" />
-            {fmtAide(wallet.balance)}
-          </span>
-        </div>
+        <button
+          onClick={onOpenWallet}
+          className="ms-auto flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3.5 py-2 font-mono text-[12.5px] font-bold text-gold transition-all hover:bg-gold/15"
+          title={t("wallet.title")}
+        >
+          <TokenIcon className="h-4 w-4" />
+          {fmtAide(wallet.balance)}
+        </button>
       </div>
 
       {/* tabs */}
-      <div className="mb-4 flex items-center gap-1 rounded-full border border-line bg-panel p-1 self-start">
+      <div className="mb-4 flex items-center gap-1 self-start rounded-full border border-line bg-panel p-1">
         {(
           [
             { id: "market", label: t("live.tabMarket") },
@@ -126,21 +132,26 @@ export default function InterpretersMode({ wallet, setWallet, did }: Props) {
             {SEED.map((it) => (
               <div key={it.id} className="corners group relative rounded-2xl border border-line bg-panel p-4 transition-all hover:border-line2">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-violet/15 font-display text-[15px] font-bold text-violet2">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet/15 font-display text-[15px] font-bold text-violet2">
                     {it.name[0]}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 text-[14px] font-extrabold">
                       {it.name}
-                      <span className={`h-1.5 w-1.5 rounded-full ${it.online ? "pulse-live bg-mint" : "bg-faint"}`} />
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${it.online ? "pulse-live bg-mint" : "bg-faint"}`} />
                     </p>
                     <p className="truncate font-mono text-[11px] text-faint">
                       {it.pairs.map(([a, b]) => `${langName(a)}⇄${langName(b)}`).join(" · ")}
                     </p>
                   </div>
                   <div className="text-end">
-                    <p className="font-mono text-[13px] font-bold text-gold">{fmtAide(it.rate)}<span className="text-[10px] text-faint">/min</span></p>
-                    <p className="text-[11px] text-dim">★ {it.rating} · {it.jobs} {t("live.jobs")}</p>
+                    <p className="font-mono text-[13px] font-bold text-gold">
+                      {fmtAide(it.rate)}
+                      <span className="text-[10px] text-faint">/min</span>
+                    </p>
+                    <p className="text-[11px] text-dim">
+                      ★ {it.rating} · {it.jobs} {t("live.jobs")}
+                    </p>
                   </div>
                 </div>
                 <p className="mt-2 text-[12px] leading-snug text-dim">
@@ -149,7 +160,7 @@ export default function InterpretersMode({ wallet, setWallet, did }: Props) {
                 <button
                   onClick={() => startSession(it)}
                   disabled={!it.online}
-                  className="btn-brand mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-extrabold disabled:opacity-35 disabled:saturate-50"
+                  className="btn-brand mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-extrabold disabled:opacity-35"
                 >
                   <MicIcon className="h-4 w-4" />
                   {it.online ? t("live.start") : t("live.offline")}
@@ -159,17 +170,24 @@ export default function InterpretersMode({ wallet, setWallet, did }: Props) {
           </div>
         )}
 
-        {tab === "session" && (
-          active ? (
+        {tab === "session" &&
+          (active ? (
             <div className="flex h-full flex-col rounded-2xl border border-line bg-panel">
               <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet/15 font-display font-bold text-violet2">{active.name[0]}</span>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet/15 font-display font-bold text-violet2">
+                  {active.name[0]}
+                </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-extrabold">{active.name}</p>
-                  <p className="font-mono text-[11px] text-mint">● {t("live.recording")} · {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}</p>
+                  <p className="truncate text-[14px] font-extrabold">{active.name}</p>
+                  <p className="font-mono text-[11px] text-mint">
+                    ● {t("live.recording")} · {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
+                  </p>
                 </div>
                 {insufficient && <span className="font-mono text-[10px] text-coral">{t("live.lowBalance")}</span>}
-                <button onClick={endSession} className="flex items-center gap-1.5 rounded-xl bg-coral px-3.5 py-2 text-[12.5px] font-extrabold text-white transition-all hover:brightness-110">
+                <button
+                  onClick={endSession}
+                  className="flex shrink-0 items-center gap-1.5 rounded-xl bg-coral px-3.5 py-2 text-[12.5px] font-extrabold text-white transition-all hover:brightness-110"
+                >
                   <XIcon className="h-3.5 w-3.5" /> {t("live.end")}
                 </button>
               </div>
@@ -177,17 +195,22 @@ export default function InterpretersMode({ wallet, setWallet, did }: Props) {
                 {transcript.length === 0 && <p className="font-mono text-[12px] text-faint">{t("live.waiting")}</p>}
                 {transcript.map((l, i) => (
                   <div key={i} className={`anim-rise flex gap-2.5 ${l.who === "a" ? "" : "flex-row-reverse"}`}>
-                    <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-bold ${l.who === "a" ? "bg-cyanic/15 text-cyanic" : "bg-gold/15 text-gold"}`}>
+                    <span
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-bold ${
+                        l.who === "a" ? "bg-cyanic/15 text-cyanic" : "bg-gold/15 text-gold"
+                      }`}
+                    >
                       {l.who === "a" ? "A" : "B"}
                     </span>
-                    <div className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 ${l.who === "a" ? "bg-panel3" : "bg-violet/12"}`}>
+                    <div className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 ${l.who === "a" ? "bg-panel3" : "bg-violet/12"}`}>
                       <p className="text-[13.5px] font-semibold leading-relaxed">{l.orig}</p>
                       <p className="mt-1 border-t border-line/60 pt-1 text-[12.5px] leading-relaxed text-dim">↳ {l.tr}</p>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="border-t border-line px-4 py-3 font-mono text-[11px] text-faint">
+              <div className="flex items-center gap-2 border-t border-line px-4 py-3 font-mono text-[11px] text-faint">
+                <SpeakerIcon className="h-3.5 w-3.5 text-violet3" />
                 {t("live.sessionCost")}: ~{fmtAide(Math.max(1, Math.round((Math.max(1, elapsed / 6) / 10) * active.rate)))} · {t("live.escrow")}
               </div>
             </div>
@@ -195,28 +218,19 @@ export default function InterpretersMode({ wallet, setWallet, did }: Props) {
             <div className="grid h-full place-items-center">
               <p className="font-mono text-[12px] text-faint">{t("live.noSession")}</p>
             </div>
-          )
-        )}
+          ))}
 
         {tab === "earn" && <EarnPanel wallet={wallet} setWallet={setWallet} did={did} />}
       </div>
 
       {surveyOpen && lastSurvey && (
-        <SurveyModal
-          note={lastSurvey.note}
-          wallet={wallet}
-          setWallet={setWallet}
-          onClose={() => setSurveyOpen(false)}
-        />
+        <SurveyModal note={lastSurvey.note} wallet={wallet} setWallet={setWallet} onClose={() => setSurveyOpen(false)} />
       )}
     </div>
   );
 }
 
-function sampleDialogue(pair: [string, string]): { who: "a" | "b"; orig: string; tr: string }[] {
-  const [a, b] = pair;
-  void a;
-  void b;
+function sampleDialogue(): { who: "a" | "b"; orig: string; tr: string }[] {
   return [
     { who: "a", orig: "Вітаю! Чи встигаємо ми на зустріч о третій?", tr: "Hello! Are we still on for the 3 o'clock meeting?" },
     { who: "b", orig: "Yes — I'll meet you at the main entrance.", tr: "Так — зустрінемося біля головного входу." },
@@ -246,12 +260,14 @@ function EarnPanel({ wallet, setWallet, did }: { wallet: Wallet; setWallet: (w: 
 
       {!joined ? (
         <div className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
               <span className="font-mono text-[10px] uppercase tracking-wider text-faint">{t("earn.native")}</span>
               <select value={lang1} onChange={(e) => setLang1(e.target.value)} className="field">
                 {LANGS.map((l) => (
-                  <option key={l.code} value={l.code}>{l.native}</option>
+                  <option key={l.code} value={l.code}>
+                    {l.native}
+                  </option>
                 ))}
               </select>
             </label>
@@ -259,13 +275,17 @@ function EarnPanel({ wallet, setWallet, did }: { wallet: Wallet; setWallet: (w: 
               <span className="font-mono text-[10px] uppercase tracking-wider text-faint">{t("earn.working")}</span>
               <select value={lang2} onChange={(e) => setLang2(e.target.value)} className="field">
                 {LANGS.map((l) => (
-                  <option key={l.code} value={l.code}>{l.native}</option>
+                  <option key={l.code} value={l.code}>
+                    {l.native}
+                  </option>
                 ))}
               </select>
             </label>
           </div>
           <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-faint">{t("earn.rate")} — {fmtAide(rate)}/min</span>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-faint">
+              {t("earn.rate")} — {fmtAide(rate)}/min
+            </span>
             <input type="range" min={1} max={20} value={rate} onChange={(e) => setRate(Number(e.target.value))} />
           </label>
           <p className="rounded-xl border border-line bg-panel2 px-3.5 py-2.5 font-mono text-[11px] leading-relaxed text-faint">
@@ -279,12 +299,14 @@ function EarnPanel({ wallet, setWallet, did }: { wallet: Wallet; setWallet: (w: 
       ) : (
         <div className="mt-4 space-y-3">
           <div className="flex items-center gap-2 rounded-xl border border-mint/40 bg-mint/8 px-3.5 py-3 text-[13px] font-bold text-mint">
-            <CheckIcon className="h-4 w-4" />
-            {t("earn.joined")} <span className="font-mono text-[11px] font-normal text-dim">({did.slice(0, 24)}…)</span>
+            <CheckIcon className="h-4 w-4 shrink-0" />
+            {t("earn.joined")} <span className="truncate font-mono text-[11px] font-normal text-dim">({did.slice(0, 24)}…)</span>
           </div>
           <div className="rounded-xl border border-line bg-panel2 px-3.5 py-3">
             <p className="font-mono text-[10px] uppercase tracking-wider text-faint">{t("earn.yourPair")}</p>
-            <p className="mt-1 text-[14px] font-extrabold">{langName(lang1)} ⇄ {langName(lang2)} · {fmtAide(rate)}/min</p>
+            <p className="mt-1 text-[14px] font-extrabold">
+              {langName(lang1)} ⇄ {langName(lang2)} · {fmtAide(rate)}/min
+            </p>
           </div>
           <p className="text-[12px] leading-relaxed text-dim">{t("earn.next")}</p>
         </div>
@@ -315,11 +337,13 @@ function SurveyModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="backdrop-in absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={onClose} />
       <div className="anim-rise relative w-full max-w-[420px] rounded-2xl border border-line2 bg-panel p-5 shadow-2xl">
         <h3 className="font-display text-[16px] font-bold">{t("survey.title")}</h3>
-        <p className="mt-1 text-[12.5px] leading-relaxed text-dim">{t("survey.sub")} <b className="text-text">{note}</b></p>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-dim">
+          {t("survey.sub")} <b className="text-text">{note}</b>
+        </p>
         {!done ? (
           <>
             <label className="mt-4 flex flex-col gap-1.5">
@@ -327,16 +351,22 @@ function SurveyModal({
               <textarea value={slang} onChange={(e) => setSlang(e.target.value)} rows={3} className="field resize-none" placeholder={t("survey.ph")} />
             </label>
             <div className="mt-4 flex gap-2">
-              <button onClick={onClose} className="row-hl flex-1 rounded-xl border border-line py-2.5 text-[13px] font-bold text-dim hover:text-text">{t("common.skip")}</button>
-              <button onClick={submit} className="btn-brand flex-1 rounded-xl py-2.5 text-[13px] font-extrabold">{t("survey.submit")}</button>
+              <button onClick={onClose} className="row-hl flex-1 rounded-xl border border-line py-2.5 text-[13px] font-bold text-dim hover:text-text">
+                {t("common.skip")}
+              </button>
+              <button onClick={submit} className="btn-brand flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-extrabold">
+                <BoltIcon className="h-3.5 w-3.5" /> {t("survey.submit")}
+              </button>
             </div>
           </>
         ) : (
           <>
             <p className="mt-4 flex items-center gap-2 rounded-xl border border-mint/40 bg-mint/8 px-3.5 py-3 text-[13px] font-bold text-mint">
-              <CheckIcon className="h-4 w-4" /> {t("survey.thanks")}
+              <CheckIcon className="h-4 w-4 shrink-0" /> {t("survey.thanks")}
             </p>
-            <button onClick={onClose} className="btn-brand mt-3 w-full rounded-xl py-2.5 text-[13px] font-extrabold">{t("common.close")}</button>
+            <button onClick={onClose} className="btn-brand mt-3 w-full rounded-xl py-2.5 text-[13px] font-extrabold">
+              {t("common.close")}
+            </button>
           </>
         )}
       </div>
