@@ -1,0 +1,20 @@
+{
+  "name": "AiDe — AI Studio & Coder",
+  "short_name": "AiDe",
+  "description": "AI-native studio & coder: free models, app builder, live translator. Self-sovereign DID login.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#131316",
+  "theme_color": "#131316",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
